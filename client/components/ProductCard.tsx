@@ -4,6 +4,9 @@ import { Card } from "@/components/ui/card";
 import { ShoppingCart, AlertCircle } from "lucide-react";
 import { useState } from "react";
 import { useCart } from "@/hooks/useCart";
+import { useAuth } from "@/contexts/AuthContext";
+import { requireLogin } from "@/lib/authUtils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ProductCardProps {
   product: PetItem;
@@ -11,6 +14,7 @@ interface ProductCardProps {
 
 export default function ProductCard({ product }: ProductCardProps) {
   const { addItem } = useCart();
+  const { user } = useAuth();
   const [quantity, setQuantity] = useState(1);
   const [isAdded, setIsAdded] = useState(false);
 
@@ -18,6 +22,11 @@ export default function ProductCard({ product }: ProductCardProps) {
   const isLowStock = product.stock > 0 && product.stock <= 10;
 
   const handleAddToCart = () => {
+    // Require login before adding to cart
+    if (!requireLogin(user, window.location.pathname)) {
+      return;
+    }
+
     addItem(product, quantity);
     setIsAdded(true);
     setTimeout(() => setIsAdded(false), 2000);
@@ -120,14 +129,25 @@ export default function ProductCard({ product }: ProductCardProps) {
             </button>
           </div>
         )}
-        <Button
-          onClick={handleAddToCart}
-          disabled={isOutOfStock}
-          className={`flex-1 ${isAdded ? "bg-green-600 hover:bg-green-700" : "bg-primary hover:bg-primary/90"}`}
-        >
-          <ShoppingCart className="w-4 h-4 mr-2" />
-          {isAdded ? "Added!" : "Add"}
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={handleAddToCart}
+                disabled={isOutOfStock}
+                className={`flex-1 ${isAdded ? "bg-green-600 hover:bg-green-700" : "bg-primary hover:bg-primary/90"}`}
+              >
+                <ShoppingCart className="w-4 h-4 mr-2" />
+                {isAdded ? "Added!" : "Add"}
+              </Button>
+            </TooltipTrigger>
+            {!user && (
+              <TooltipContent>
+                <p>Please log in to add items to cart</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
       </div>
     </Card>
   );

@@ -70,7 +70,14 @@ export const useBranches = () => {
     [branches, setBranches]
   );
 
-  return { branches, getBranch, createBranch, updateBranch };
+  const deleteBranch = useCallback(
+    (id: string) => {
+      setBranches(branches.filter((b) => b.id !== id));
+    },
+    [branches, setBranches]
+  );
+
+  return { branches, getBranch, createBranch, updateBranch, deleteBranch };
 };
 
 // Users/Staff
@@ -203,6 +210,13 @@ export const useAppointments = () => {
     [updateAppointment]
   );
 
+  const deleteAppointment = useCallback(
+    (id: string) => {
+      setAppointments(appointments.filter((a) => a.id !== id));
+    },
+    [appointments, setAppointments]
+  );
+
   return {
     appointments,
     getAppointment,
@@ -212,6 +226,7 @@ export const useAppointments = () => {
     createAppointment,
     updateAppointment,
     assignVeterinarian,
+    deleteAppointment,
   };
 };
 
@@ -286,6 +301,13 @@ export const useMedications = () => {
     [usage]
   );
 
+  const deleteMedication = useCallback(
+    (id: string) => {
+      setMedications(medications.filter((m) => m.id !== id));
+    },
+    [medications, setMedications]
+  );
+
   return {
     medications,
     usage,
@@ -297,6 +319,7 @@ export const useMedications = () => {
     updateMedication,
     useMedication,
     getMedicationUsageHistory,
+    deleteMedication,
   };
 };
 
@@ -364,7 +387,14 @@ export const usePetItems = () => {
     [items, setItems]
   );
 
-  return { items, getItem, getItemsByBranch, createItem, updateItem };
+  const deleteItem = useCallback(
+    (id: string) => {
+      setItems(items.filter((i) => i.id !== id));
+    },
+    [items, setItems]
+  );
+
+  return { items, getItem, getItemsByBranch, createItem, updateItem, deleteItem };
 };
 
 // Invoices
@@ -403,5 +433,12 @@ export const useInvoices = () => {
     [invoices, setInvoices]
   );
 
-  return { invoices, getInvoice, getInvoicesByCustomer, getInvoicesByBranch, createInvoice, updateInvoice };
+  const deleteInvoice = useCallback(
+    (id: string) => {
+      setInvoices(invoices.filter((i) => i.id !== id));
+    },
+    [invoices, setInvoices]
+  );
+
+  return { invoices, getInvoice, getInvoicesByCustomer, getInvoicesByBranch, createInvoice, updateInvoice, deleteInvoice };
 };

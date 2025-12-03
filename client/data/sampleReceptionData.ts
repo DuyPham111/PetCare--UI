@@ -30,9 +30,9 @@ export const sampleReceptionVets = [
 ];
 
 export const sampleReceptionServices = [
-    { id: 'svc-1', name: 'Checkup', duration: 30 },
-    { id: 'svc-2', name: 'Vaccination', duration: 20 },
-    { id: 'svc-3', name: 'Grooming', duration: 40 },
+    { id: 'svc-1', name: 'Checkup', duration: 30, price: 30 },
+    { id: 'svc-2', name: 'Vaccination', duration: 20, price: 25 },
+    { id: 'svc-3', name: 'Grooming', duration: 40, price: 50 },
 ];
 
 export const sampleReceptionBranches = ['Downtown Branch', 'Uptown Branch'];

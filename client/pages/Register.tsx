@@ -76,6 +76,9 @@ export default function Register() {
           <p className="text-muted-foreground text-center mt-2">
             Create your account to get started
           </p>
+          <p className="text-xs text-muted-foreground text-center mt-1 bg-blue-50 rounded-md p-2">
+            🥉 New members start with "Cơ bản" membership
+          </p>
         </div>
 
         {error && (
@@ -149,8 +152,7 @@ export default function Register() {
           <Button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-primary hover:bg-primary/90 text-white"
-            size="lg"
+            className="w-full px-4 py-2 rounded-md bg-primary hover:bg-primary/90 text-white"
           >
             {isLoading ? "Creating account..." : "Create Account"}
           </Button>
@@ -159,8 +161,13 @@ export default function Register() {
         <div className="mt-6 border-t border-border pt-6">
           <p className="text-center text-sm text-muted-foreground">
             Already have an account?{" "}
-            <Link to="/login" className="text-primary hover:text-primary/80 font-medium">
-              Sign in
+            <Link to="/login">
+              <Button
+                variant="outline"
+                className="px-4 py-2 rounded-md border border-border hover:bg-accent"
+              >
+                Sign in
+              </Button>
             </Link>
           </p>
         </div>

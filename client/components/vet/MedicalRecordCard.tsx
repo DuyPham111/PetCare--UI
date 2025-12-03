@@ -9,10 +9,10 @@ interface RecordProps {
         id: string;
         pet: string;
         owner: string;
-        date: string;
-        symptoms: string;
+        date?: string;
+        symptoms?: string;
         diagnosis?: string;
-        prescription?: PrescriptionItem[];
+        prescription?: PrescriptionItem[] | string;
         followUp?: string;
         vet?: string;
     } | null;
@@ -60,27 +60,36 @@ export default function MedicalRecordCard({ record, onSave }: RecordProps) {
                 <div>
                     <label className="text-xs text-muted-foreground">Prescription</label>
                     <div className="space-y-2">
-                        {(local?.prescription || []).map((p: any, idx: number) => (
+                        {(Array.isArray(local?.prescription) ? local.prescription : []).map((p: any, idx: number) => (
                             <div key={idx} className="flex items-center gap-2">
                                 <input value={p.name} onChange={(e) => {
-                                    const arr = [...(local?.prescription || [])];
-                                    arr[idx] = { ...arr[idx], name: e.target.value };
-                                    update({ prescription: arr });
+                                    const arr = Array.isArray(local?.prescription) ? [...local.prescription] : [];
+                                    if (arr[idx]) {
+                                        arr[idx] = { ...arr[idx], name: e.target.value };
+                                        update({ prescription: arr });
+                                    }
                                 }} className="w-1/2 px-2 py-1 border border-input rounded-md" />
                                 <input value={p.dose} onChange={(e) => {
-                                    const arr = [...(local?.prescription || [])];
-                                    arr[idx] = { ...arr[idx], dose: e.target.value };
-                                    update({ prescription: arr });
+                                    const arr = Array.isArray(local?.prescription) ? [...local.prescription] : [];
+                                    if (arr[idx]) {
+                                        arr[idx] = { ...arr[idx], dose: e.target.value };
+                                        update({ prescription: arr });
+                                    }
                                 }} className="w-1/4 px-2 py-1 border border-input rounded-md" />
                                 <input type="number" value={p.qty} onChange={(e) => {
-                                    const arr = [...(local?.prescription || [])];
-                                    arr[idx] = { ...arr[idx], qty: parseInt(e.target.value || '0') };
-                                    update({ prescription: arr });
+                                    const arr = Array.isArray(local?.prescription) ? [...local.prescription] : [];
+                                    if (arr[idx]) {
+                                        arr[idx] = { ...arr[idx], qty: parseInt(e.target.value || '0') };
+                                        update({ prescription: arr });
+                                    }
                                 }} className="w-1/6 px-2 py-1 border border-input rounded-md" />
                             </div>
                         ))}
                         <div>
-                            <Button size="sm" onClick={() => update({ prescription: [...(local?.prescription || []), { name: '', dose: '', qty: 1 }] })}>Add Prescription Item</Button>
+                            <Button size="sm" onClick={() => {
+                                const current = Array.isArray(local?.prescription) ? local.prescription : [];
+                                update({ prescription: [...current, { name: '', dose: '', qty: 1 }] });
+                            }}>Add Prescription Item</Button>
                         </div>
                     </div>
                 </div>

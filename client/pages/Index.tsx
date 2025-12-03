@@ -1,229 +1,216 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Header from "@/components/Header";
-import { Calendar, Syringe, Heart, Clock, Users, Award } from "lucide-react";
+import { Calendar, Syringe, Heart, Clock, Users, Award, ShoppingBag, Stethoscope } from "lucide-react";
 
 export default function Index() {
+  const services = [
+    {
+      icon: Calendar,
+      title: "Health Check-ups",
+      description: "Regular veterinary examinations to keep your pets in perfect health",
+      color: "text-blue-600",
+      link: "/appointments"
+    },
+    {
+      icon: Syringe,
+      title: "Vaccinations",
+      description: "Essential vaccines to protect your pets from diseases",
+      color: "text-green-600",
+      link: "/vaccinations"
+    },
+    {
+      icon: Stethoscope,
+      title: "Medical Treatment",
+      description: "Expert care and treatment for all your pet's medical needs",
+      color: "text-purple-600",
+      link: "/appointments"
+    },
+    {
+      icon: ShoppingBag,
+      title: "Pet Products",
+      description: "Quality food, toys, and supplies for your beloved companions",
+      color: "text-orange-600",
+      link: "/shop"
+    }
+  ];
+
+  const features = [
+    {
+      icon: Clock,
+      title: "24/7 Emergency Care",
+      description: "Round-the-clock emergency services for urgent pet care needs"
+    },
+    {
+      icon: Users,
+      title: "Expert Veterinarians",
+      description: "Experienced and caring professionals dedicated to pet health"
+    },
+    {
+      icon: Award,
+      title: "Quality Service",
+      description: "Award-winning care with 98% customer satisfaction rating"
+    }
+  ];
+
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       <Header />
 
-      {/* Hero Section */}
-      <section className="relative bg-gradient-to-br from-primary/5 via-white to-secondary/5 overflow-hidden pt-20 pb-32">
-        <div className="absolute inset-0 opacity-30">
-          <div className="absolute top-10 right-20 w-72 h-72 bg-primary/10 rounded-full blur-3xl" />
-          <div className="absolute -bottom-20 left-20 w-96 h-96 bg-secondary/10 rounded-full blur-3xl" />
-        </div>
-
-        <div className="container mx-auto px-4 relative z-10">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div className="space-y-8 animate-fade-in">
-              <div className="space-y-4">
-                <h1 className="text-4xl md:text-5xl font-bold text-foreground leading-tight">
-                  Premium Care for Your Beloved Pets
-                </h1>
-                <p className="text-xl text-muted-foreground">
-                  Schedule check-ups, track vaccinations, and ensure your furry friends stay healthy and happy with our professional veterinary care.
-                </p>
-              </div>
-
-              <div className="flex gap-4 flex-wrap">
-                <Link to="/appointments">
-                  <Button size="lg" className="bg-primary hover:bg-primary/90 text-white">
-                    Schedule Check-up
-                  </Button>
-                </Link>
-                <Link to="/vaccinations">
-                  <Button size="lg" variant="outline" className="border-primary text-primary hover:bg-primary/5">
-                    View Vaccinations
-                  </Button>
-                </Link>
-              </div>
-
-              <div className="flex gap-8 pt-4">
-                <div>
-                  <p className="text-3xl font-bold text-primary">500+</p>
-                  <p className="text-sm text-muted-foreground">Happy Pets</p>
-                </div>
-                <div>
-                  <p className="text-3xl font-bold text-primary">98%</p>
-                  <p className="text-sm text-muted-foreground">Satisfaction</p>
-                </div>
-                <div>
-                  <p className="text-3xl font-bold text-primary">24/7</p>
-                  <p className="text-sm text-muted-foreground">Support</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Hero Image */}
-            <div className="relative animate-slide-in-up">
-              <div className="bg-gradient-to-br from-primary/20 to-secondary/20 rounded-2xl p-8 md:p-12">
-                <div className="bg-white rounded-xl p-8 text-center space-y-4">
-                  <div className="text-6xl">🐶</div>
-                  <h3 className="text-2xl font-bold text-foreground">Happy & Healthy</h3>
-                  <p className="text-muted-foreground">Professional veterinary care you can trust</p>
-                </div>
-              </div>
+      {/* Hero Section - Sales Style */}
+      <section className="bg-gradient-to-r from-blue-600 to-blue-400 text-white">
+        <div className="container mx-auto px-4 py-20">
+          <div className="max-w-3xl">
+            <h1 className="text-4xl md:text-5xl font-bold mb-4">
+              Welcome to PetCare Pro
+            </h1>
+            <p className="text-xl text-blue-100 mb-8">
+              Your trusted partner in pet healthcare. Expert veterinary care with
+              compassion and dedication for your beloved companions.
+            </p>
+            <div className="flex flex-wrap gap-4">
+              <Link to="/register">
+                <button className="px-6 py-3 bg-white text-blue-600 font-medium rounded-md hover:bg-blue-50 transition">
+                  Get Started
+                </button>
+              </Link>
+              <Link to="/shop">
+                <button className="px-6 py-3 border border-white text-white rounded-md hover:bg-white/10 transition">
+                  Browse Products
+                </button>
+              </Link>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Services Section */}
-      <section className="py-20 bg-white">
+      {/* Stats Section */}
+      <section className="py-12 bg-white border-b">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-16 space-y-4">
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground">
-              Our Services
-            </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Comprehensive pet healthcare solutions designed with your pet's wellbeing in mind
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            {/* Check-ups Card */}
-            <div className="group hover:shadow-lg transition-shadow duration-300 border border-border rounded-xl p-8 bg-white">
-              <div className="mb-4">
-                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                  <Calendar className="w-6 h-6 text-primary" />
-                </div>
-              </div>
-              <h3 className="text-2xl font-bold text-foreground mb-2">Health Check-ups</h3>
-              <p className="text-muted-foreground mb-6">
-                Regular veterinary examinations to monitor your pet's health and catch any issues early.
-              </p>
-              <div className="flex items-center gap-2 text-primary font-medium">
-                <span>Schedule Now</span>
-                <span className="text-lg">→</span>
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+            <div>
+              <div className="text-4xl font-bold text-primary mb-2">500+</div>
+              <div className="text-muted-foreground">Happy Pets Served</div>
             </div>
-
-            {/* Vaccinations Card */}
-            <div className="group hover:shadow-lg transition-shadow duration-300 border border-border rounded-xl p-8 bg-white">
-              <div className="mb-4">
-                <div className="w-12 h-12 bg-secondary/10 rounded-lg flex items-center justify-center group-hover:bg-secondary/20 transition-colors">
-                  <Syringe className="w-6 h-6 text-secondary" />
-                </div>
-              </div>
-              <h3 className="text-2xl font-bold text-foreground mb-2">Vaccination Tracking</h3>
-              <p className="text-muted-foreground mb-6">
-                Keep track of all vaccinations, reminders, and booster shots in one convenient place.
-              </p>
-              <div className="flex items-center gap-2 text-secondary font-medium">
-                <span>View Records</span>
-                <span className="text-lg">→</span>
-              </div>
+            <div>
+              <div className="text-4xl font-bold text-primary mb-2">98%</div>
+              <div className="text-muted-foreground">Customer Satisfaction</div>
+            </div>
+            <div>
+              <div className="text-4xl font-bold text-primary mb-2">24/7</div>
+              <div className="text-muted-foreground">Emergency Support</div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section className="py-20 bg-gradient-to-br from-primary/5 to-secondary/5">
+      {/* Services Section - Sales Style Cards */}
+      <section className="py-16">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-16 space-y-4">
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground">
-              Why Choose PetCare Pro
-            </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Experience the difference of modern, accessible pet healthcare
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold mb-3">Our Services</h2>
+            <p className="text-muted-foreground text-lg">
+              Comprehensive pet healthcare solutions for your beloved companions
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="text-center space-y-4">
-              <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto shadow-md">
-                <Clock className="w-8 h-8 text-primary" />
-              </div>
-              <h3 className="text-xl font-bold text-foreground">Easy Scheduling</h3>
-              <p className="text-muted-foreground">
-                Book appointments in seconds with our intuitive online scheduling system.
-              </p>
-            </div>
-
-            <div className="text-center space-y-4">
-              <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto shadow-md">
-                <Heart className="w-8 h-8 text-secondary" />
-              </div>
-              <h3 className="text-xl font-bold text-foreground">Expert Care</h3>
-              <p className="text-muted-foreground">
-                Our experienced veterinarians provide compassionate, comprehensive care.
-              </p>
-            </div>
-
-            <div className="text-center space-y-4">
-              <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto shadow-md">
-                <Award className="w-8 h-8 text-primary" />
-              </div>
-              <h3 className="text-xl font-bold text-foreground">Certified Professionals</h3>
-              <p className="text-muted-foreground">
-                Fully licensed and certified veterinary professionals with years of experience.
-              </p>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+            {services.map((service, index) => {
+              const Icon = service.icon;
+              return (
+                <Card key={index} className="hover:shadow-lg transition-shadow">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">{service.title}</CardTitle>
+                    <Icon className={`h-5 w-5 ${service.color}`} />
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {service.description}
+                    </p>
+                    <Link to={service.link}>
+                      <Button variant="outline" size="sm" className="w-full">
+                        Learn More
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
-        </div>
-      </section>
 
-      {/* CTA Section */}
-      <section className="py-16 bg-white">
-        <div className="container mx-auto px-4">
-          <div className="bg-gradient-to-r from-primary to-secondary rounded-2xl p-12 md:p-16 text-white text-center space-y-6">
-            <h2 className="text-3xl md:text-4xl font-bold">
-              Ready to Care for Your Pet?
-            </h2>
-            <p className="text-lg text-white/90 max-w-2xl mx-auto">
-              Get started with PetCare Pro today. Schedule your pet's first appointment and experience the difference.
-            </p>
-            <Link to="/appointments">
-              <Button size="lg" className="bg-white text-primary hover:bg-white/90 font-semibold">
-                Schedule Appointment Now
-              </Button>
+          {/* Quick Actions */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Link to="/appointments" className="block">
+              <button className="w-full bg-primary text-white px-4 py-3 rounded-md hover:bg-primary/90 transition">
+                Schedule Appointment
+              </button>
+            </Link>
+            <Link to="/shop" className="block">
+              <button className="w-full border border-border px-4 py-3 rounded-md hover:bg-accent transition">
+                Shop Products
+              </button>
+            </Link>
+            <Link to="/vaccinations" className="block">
+              <button className="w-full border border-border px-4 py-3 rounded-md hover:bg-accent transition">
+                View Vaccinations
+              </button>
             </Link>
           </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-foreground text-white py-12">
+      {/* Features Section */}
+      <section className="py-16 bg-secondary/5">
         <div className="container mx-auto px-4">
-          <div className="grid md:grid-cols-4 gap-8 mb-8">
-            <div>
-              <div className="flex items-center gap-2 font-bold text-xl mb-4">
-                <div className="w-8 h-8 bg-gradient-to-br from-primary to-secondary rounded-lg flex items-center justify-center">
-                  🐾
-                </div>
-                <span>PetCare Pro</span>
-              </div>
-              <p className="text-white/70">
-                Professional veterinary care for your beloved pets.
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">Services</h4>
-              <ul className="space-y-2 text-white/70">
-                <li><Link to="/" className="hover:text-white transition">Health Check-ups</Link></li>
-                <li><Link to="/" className="hover:text-white transition">Vaccinations</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">Quick Links</h4>
-              <ul className="space-y-2 text-white/70">
-                <li><Link to="/" className="hover:text-white transition">Home</Link></li>
-                <li><Link to="/appointments" className="hover:text-white transition">Appointments</Link></li>
-                <li><Link to="/vaccinations" className="hover:text-white transition">Vaccinations</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">Contact</h4>
-              <p className="text-white/70 mb-2">support@petcarepro.com</p>
-              <p className="text-white/70">(555) 123-4567</p>
-            </div>
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold mb-3">Why Choose Us</h2>
+            <p className="text-muted-foreground text-lg">
+              We're committed to providing the best care for your pets
+            </p>
           </div>
-          <div className="border-t border-white/10 pt-8 text-center text-white/70">
-            <p>&copy; 2024 PetCare Pro. All rights reserved.</p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {features.map((feature, index) => {
+              const Icon = feature.icon;
+              return (
+                <Card key={index}>
+                  <CardHeader>
+                    <Icon className="h-10 w-10 text-primary mb-3" />
+                    <CardTitle className="text-xl">{feature.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground">{feature.description}</p>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-20 bg-gradient-to-r from-primary to-primary/80 text-white">
+        <div className="container mx-auto px-4 text-center">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">
+            Ready to Give Your Pet the Best Care?
+          </h2>
+          <p className="text-xl text-primary-foreground/90 mb-8 max-w-2xl mx-auto">
+            Join hundreds of happy pet owners who trust us with their companions' health
+          </p>
+          <Link to="/register">
+            <button className="px-8 py-4 bg-white text-primary font-medium rounded-md hover:bg-gray-100 transition text-lg">
+              Get Started Today
+            </button>
+          </Link>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-card border-t py-8">
+        <div className="container mx-auto px-4 text-center text-muted-foreground">
+          <p>&copy; 2024 PetCare Pro. All rights reserved.</p>
+          <p className="mt-2 text-sm">Your trusted partner in pet healthcare</p>
         </div>
       </footer>
     </div>

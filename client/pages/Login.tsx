@@ -1,17 +1,25 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { AlertCircle } from "lucide-react";
+import { getRedirectUrl } from "@/lib/authUtils";
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
   const [email, setEmail] = useState("john@example.com");
   const [password, setPassword] = useState("customer123");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const redirect = getRedirectUrl();
+    setRedirectUrl(redirect);
+  }, [location]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,7 +28,14 @@ export default function Login() {
 
     try {
       await login(email, password);
-      // Redirect based on role
+
+      // If there's a redirect URL, go there first
+      if (redirectUrl) {
+        navigate(redirectUrl);
+        return;
+      }
+
+      // Otherwise, redirect based on role
       const storedUser = localStorage.getItem("petcare_user");
       if (storedUser) {
         const user = JSON.parse(storedUser);
@@ -33,8 +48,8 @@ export default function Login() {
           navigate("/vet");
         } else if (user.role === "receptionist") {
           navigate("/receptionist");
-        } else if (user.role === "pharmacist") {
-          navigate("/pharmacist");
+        } else if (user.role === "sales") {
+          navigate("/sales");
         } else {
           navigate("/dashboard");
         }
@@ -112,8 +127,13 @@ export default function Login() {
         <div className="mt-6 border-t border-border pt-6">
           <p className="text-center text-sm text-muted-foreground">
             Don't have an account?{" "}
-            <Link to="/register" className="text-primary hover:text-primary/80 font-medium">
-              Create one
+            <Link to="/register">
+              <Button
+                variant="outline"
+                className="px-4 py-2 rounded-md border border-border hover:bg-accent ml-2"
+              >
+                Create one
+              </Button>
             </Link>
           </p>
         </div>
@@ -138,8 +158,8 @@ export default function Login() {
               <p>reception@petcare.com / rec123</p>
             </div>
             <div>
-              <p className="font-medium">Pharmacist:</p>
-              <p>pharmacy@petcare.com / pharm123</p>
+              <p className="font-medium">Sales Staff:</p>
+              <p>sales@petcare.com / sales123</p>
             </div>
           </div>
         </div>

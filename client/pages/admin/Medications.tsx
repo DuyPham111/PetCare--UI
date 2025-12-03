@@ -1,17 +1,20 @@
-import AdminHeader from "@/components/AdminHeader";
+import AdminLayout from "@/components/AdminLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMedications, useBranches } from "@/hooks/useHospitalData";
-import { AlertTriangle, Plus, TrendingDown, TrendingUp } from "lucide-react";
+import { AlertTriangle, Plus, TrendingDown, TrendingUp, Edit, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Navigate } from "react-router-dom";
 
 export default function MedicationsPage() {
   const { user } = useAuth();
-  const { medications, createMedication, updateMedication, getLowStockMedications, getExpiredMedications } = useMedications();
+  const { medications, createMedication, updateMedication, deleteMedication, getLowStockMedications, getExpiredMedications } = useMedications();
   const { branches } = useBranches();
+  // Default to admin's branch
+  const [selectedBranch, setSelectedBranch] = useState(user?.branchId || "all");
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -32,18 +35,45 @@ export default function MedicationsPage() {
 
   const expiredMeds = getExpiredMedications();
   const lowStockMeds = getLowStockMedications();
-  const userBranchMeds = user.branchId
-    ? medications.filter((m) => m.branchId === user.branchId || !m.branchId)
-    : medications;
+  const userBranchMeds =
+    selectedBranch === "all"
+      ? medications
+      : medications.filter((m) => m.branchId === selectedBranch);
 
-  const handleAddMedication = (e: React.FormEvent) => {
+  const handleEdit = (med: any) => {
+    setEditingId(med.id);
+    setFormData({
+      name: med.name || "",
+      description: med.description || "",
+      strength: med.strength || "",
+      unit: med.unit || "",
+      manufacturer: med.manufacturer || "",
+      batchNumber: med.batchNumber || "",
+      expiryDate: med.expiryDate || "",
+      quantity: med.quantity || 0,
+      reorderLevel: med.reorderLevel || 0,
+      price: med.price || 0,
+      branchId: med.branchId || user.branchId || "",
+    });
+    setShowForm(true);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    createMedication({
+
+    const medData = {
       ...formData,
       quantity: Number(formData.quantity),
       reorderLevel: Number(formData.reorderLevel),
       price: Number(formData.price),
-    });
+    };
+
+    if (editingId) {
+      updateMedication(editingId, medData);
+    } else {
+      createMedication(medData);
+    }
+
     setFormData({
       name: "",
       description: "",
@@ -58,6 +88,31 @@ export default function MedicationsPage() {
       branchId: user.branchId || "",
     });
     setShowForm(false);
+    setEditingId(null);
+  };
+
+  const handleCancel = () => {
+    setShowForm(false);
+    setEditingId(null);
+    setFormData({
+      name: "",
+      description: "",
+      strength: "",
+      unit: "",
+      manufacturer: "",
+      batchNumber: "",
+      expiryDate: "",
+      quantity: 0,
+      reorderLevel: 0,
+      price: 0,
+      branchId: user.branchId || "",
+    });
+  };
+
+  const handleDelete = (medId: string) => {
+    if (confirm("Are you sure you want to delete this medication?")) {
+      deleteMedication(medId);
+    }
   };
 
   const isExpired = (date: string) => {
@@ -67,9 +122,7 @@ export default function MedicationsPage() {
   const isLowStock = (med: any) => med.quantity <= med.reorderLevel;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <AdminHeader />
-
+    <AdminLayout>
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -84,6 +137,29 @@ export default function MedicationsPage() {
             Add Medication
           </Button>
         </div>
+
+        {/* Branch Filter */}
+        <Card className="p-4 mb-6 border border-border">
+          <div className="flex flex-wrap gap-4 items-center">
+            <div>
+              <label className="text-sm font-medium text-foreground block mb-2">
+                Filter by Branch
+              </label>
+              <select
+                value={selectedBranch}
+                onChange={(e) => setSelectedBranch(e.target.value)}
+                className="px-4 py-2 border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="all">All Branches</option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </Card>
 
         {/* Alerts */}
         <div className="space-y-3 mb-8">
@@ -107,11 +183,11 @@ export default function MedicationsPage() {
           )}
         </div>
 
-        {/* Add Medication Form */}
+        {/* Add/Edit Medication Form */}
         {showForm && (
           <Card className="p-6 mb-8 border border-border bg-primary/5">
-            <h2 className="text-2xl font-bold text-foreground mb-6">Add New Medication</h2>
-            <form onSubmit={handleAddMedication} className="space-y-6">
+            <h2 className="text-2xl font-bold text-foreground mb-6">{editingId ? "Edit Medication" : "Add New Medication"}</h2>
+            <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-foreground block mb-2">Name *</label>
@@ -198,6 +274,7 @@ export default function MedicationsPage() {
                   <input
                     type="number"
                     step="0.01"
+                    min="0"
                     value={formData.price}
                     onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
                     className="w-full px-4 py-2 border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
@@ -217,12 +294,12 @@ export default function MedicationsPage() {
 
               <div className="flex gap-4">
                 <Button type="submit" className="bg-primary hover:bg-primary/90 text-white">
-                  Add Medication
+                  {editingId ? "Update Medication" : "Add Medication"}
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setShowForm(false)}
+                  onClick={handleCancel}
                 >
                   Cancel
                 </Button>
@@ -243,12 +320,13 @@ export default function MedicationsPage() {
                   <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Expiry</th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Status</th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Price</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {userBranchMeds.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">
+                    <td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">
                       No medications yet
                     </td>
                   </tr>
@@ -279,15 +357,35 @@ export default function MedicationsPage() {
                       </td>
                       <td className="px-6 py-4">
                         <span className={`px-3 py-1 rounded-full text-xs font-semibold ${isExpired(med.expiryDate)
-                            ? "bg-red-100 text-red-700"
-                            : isLowStock(med)
-                              ? "bg-yellow-100 text-yellow-700"
-                              : "bg-green-100 text-green-700"
+                          ? "bg-red-100 text-red-700"
+                          : isLowStock(med)
+                            ? "bg-yellow-100 text-yellow-700"
+                            : "bg-green-100 text-green-700"
                           }`}>
                           {isExpired(med.expiryDate) ? "Expired" : isLowStock(med) ? "Low Stock" : "OK"}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-foreground">${med.price.toFixed(2)}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEdit(med)}
+                            className="h-8"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDelete(med.id)}
+                            className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -296,6 +394,6 @@ export default function MedicationsPage() {
           </div>
         </Card>
       </div>
-    </div>
+    </AdminLayout>
   );
 }

@@ -3,7 +3,7 @@ import { useCart } from "@/hooks/useCart";
 import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { Trash2, ShoppingBag, ArrowLeft } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Order, OrderItem, LoyaltyAccount, LOYALTY_CONFIG } from "@shared/types";
@@ -12,6 +12,11 @@ export default function Cart() {
   const { user } = useAuth();
   const { items, removeItem, updateQuantity, clearCart } = useCart();
   const [loyalty, setLoyalty] = useState<LoyaltyAccount | null>(null);
+
+  // Redirect to login if not authenticated
+  if (!user) {
+    return <Navigate to={`/login?redirect=/cart`} replace />;
+  }
 
   useEffect(() => {
     if (!user) return;
@@ -132,7 +137,7 @@ export default function Cart() {
         <div className="max-w-6xl mx-auto">
           {/* Header */}
           <div className="flex items-center gap-4 mb-12">
-            <Link to="/store">
+            <Link to="/shop">
               <Button variant="ghost" size="sm" className="gap-2">
                 <ArrowLeft className="w-4 h-4" />
                 Continue Shopping

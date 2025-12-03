@@ -1,5 +1,5 @@
 import ReceptionHeader from "@/components/ReceptionHeader";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import PetLookupTable from "@/components/receptionist/PetLookupTable";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
@@ -19,14 +19,20 @@ export default function PetLookup() {
     const results = samplePets.filter(p => p.id.includes(query) || p.name.toLowerCase().includes(query.toLowerCase()) || p.owner.toLowerCase().includes(query.toLowerCase()));
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-background">
             <ReceptionHeader />
             <div className="container mx-auto px-4 py-8">
                 <h1 className="text-3xl font-bold mb-3">Pet Information Lookup</h1>
                 <p className="text-muted-foreground mb-6">Search pet records by ID, name or owner</p>
 
-                <Card className="p-6 border border-border">
-                    <PetLookupTable />
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Pet Database</CardTitle>
+                        <CardDescription>Search and view pet information</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <PetLookupTable />
+                    </CardContent>
                 </Card>
             </div>
         </div>

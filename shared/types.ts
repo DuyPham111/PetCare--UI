@@ -1,5 +1,6 @@
 // User and Authentication
-export type UserRole = "customer" | "receptionist" | "veterinarian" | "pharmacist" | "admin";
+export type UserRole = "customer" | "receptionist" | "veterinarian" | "sales" | "admin";
+export type MembershipLevel = "Cơ bản" | "Thân thiết" | "VIP";
 
 export interface User {
   id: string;
@@ -7,6 +8,9 @@ export interface User {
   password?: string;
   fullName: string;
   role: UserRole;
+  membershipLevel?: MembershipLevel; // Only for customers
+  loyaltyPoints?: number; // Only for customers
+  yearlySpending?: number; // Only for customers - total spending in current year
   branchId?: string;
   profileImage?: string;
   phone?: string;
@@ -63,30 +67,36 @@ export interface Pet {
   createdAt: string;
 }
 
-// Medical Records
+// Medical Records - Unified Model
 export interface MedicalRecord {
   id: string;
   petId: string;
-  appointmentId: string;
+  petName: string;
+  customerId: string;
+  customerName: string;
   veterinarianId: string;
+  veterinarianName: string;
+  symptoms: string;
   diagnosis: string;
-  treatment: string;
-  notes: string;
-  prescriptions: Prescription[];
+  conclusion: string;
+  prescription: PrescriptionItem[];
+  followUpDate?: string;
+  createdAt: string;
+  branchId: string;
   weight?: number;
   temperature?: number;
   bloodPressure?: string;
-  dateRecorded: string;
+  appointmentId?: string;
 }
 
 // Prescriptions
-export interface Prescription {
-  id: string;
-  medicationId: string;
-  dosage: string;
-  frequency: string;
-  duration: string;
-  instructions: string;
+export interface PrescriptionItem {
+  drugName: string;
+  quantity: number;
+  dosage?: string;
+  frequency?: string;
+  duration?: string;
+  instructions?: string;
 }
 
 // Vaccinations
@@ -102,7 +112,7 @@ export interface Vaccination {
 }
 
 // Appointments
-export type AppointmentStatus = "pending" | "confirmed" | "completed" | "cancelled";
+export type AppointmentStatus = "pending" | "checked-in" | "completed" | "cancelled";
 
 export interface Appointment {
   id: string;
@@ -244,6 +254,7 @@ export type InvoiceStatus = "draft" | "pending" | "paid" | "overdue" | "cancelle
 export interface Invoice {
   id: string;
   appointmentId?: string;
+  medicalRecordId?: string;
   customerId: string;
   branchId: string;
   items: InvoiceItem[];
@@ -256,6 +267,8 @@ export interface Invoice {
   paymentMethod?: string;
   notes?: string;
   createdAt: string;
+  veterinarianId?: string;
+  medicalServiceType?: string;
 }
 
 export interface InvoiceItem {
@@ -264,6 +277,29 @@ export interface InvoiceItem {
   quantity: number;
   unitPrice: number;
   total: number;
+  type?: "service" | "medication" | "product";
+}
+
+// Service Invoice - For veterinary services
+export interface ServiceInvoice {
+  id: string;
+  customerId: string;
+  customerName: string;
+  branchId: string;
+  salesStaffId: string;
+  salesStaffName: string;
+  serviceInstanceIds: string[]; // Reference to ServiceInstance(s)
+  subtotal: number;
+  discount: number;
+  discountRate: number;
+  total: number;
+  paymentMethod: "Cash" | "Bank transfer";
+  staffAttitudeRating?: number; // 0-5: Staff attitude rating from customer
+  overallSatisfaction?: number; // 0-5: Overall satisfaction from customer
+  loyaltyPointsEarned: number;
+  appliedPromotions: string[]; // Promotion IDs
+  notes?: string;
+  createdAt: string;
 }
 
 // Customer (extends User)
@@ -272,4 +308,167 @@ export interface Customer extends User {
   pets: string[];
   invoices: string[];
   appointments: string[];
+}
+
+// Service Types
+export type ServiceTypeId = "purchase" | "single-vaccine" | "vaccine-package" | "medical-exam";
+
+export interface ServiceType {
+  id: ServiceTypeId;
+  name: string;
+  basePrice: number;
+  description?: string;
+  createdAt: string;
+}
+
+// Vaccines
+export interface Vaccine {
+  id: string;
+  name: string;
+  price: number;
+  manufacturer?: string;
+  description?: string;
+  createdAt: string;
+}
+
+// Vaccine Packages
+export interface VaccinePackage {
+  id: string;
+  name: string;
+  monthMark: number; // Age in months for this package
+  cycle: number; // How many cycles to repeat
+  price: number;
+  vaccines: VaccineInPackage[];
+  description?: string;
+  createdAt: string;
+}
+
+export interface VaccineInPackage {
+  vaccineId: string;
+  dosage: number; // Number of doses
+}
+
+// Promotions
+export type TargetAudience = "All" | "Loyal+" | "VIP+";
+
+export interface GlobalPromotion {
+  id: string;
+  description: string;
+  targetAudience: TargetAudience;
+  applicableServiceTypes: ServiceTypeId[];
+  discountRate: number; // 5-15%
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface BranchPromotion {
+  id: string;
+  branchId: string;
+  description: string;
+  targetAudience: TargetAudience;
+  applicableServiceTypes: ServiceTypeId[];
+  discountRate: number;
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+// Branch Inventory
+export interface BranchInventory {
+  branchId: string;
+  products: BranchInventoryItem[];
+  vaccines: BranchInventoryItem[];
+  vaccinePackages: BranchInventoryItem[];
+  lastUpdated: string;
+}
+
+export interface BranchInventoryItem {
+  itemId: string;
+  quantity: number;
+  minStock: number;
+  maxStock: number;
+  reorderPoint: number;
+}
+
+// Transfer History
+export interface StaffTransfer {
+  id: string;
+  staffId: string;
+  fromBranchId: string;
+  toBranchId: string;
+  transferDate: string;
+  reason: string;
+  approvedBy: string;
+  notes?: string;
+  createdAt: string;
+}
+
+// Service Instances - Track actual service delivery
+export interface ServiceInstance {
+  id: string;
+  serviceType: ServiceTypeId;
+  veterinarianId: string;
+  veterinarianName: string;
+  petId: string;
+  petName: string;
+  customerId: string;
+  customerName: string;
+  branchId: string;
+  basePrice: number;
+  vaccineCost?: number; // For single-dose injections
+  packageCost?: number; // For package injections
+  packageId?: string; // VaccinePackage ID if applicable
+  vaccinesUsed: VaccineUsed[]; // List of vaccines administered
+  datePerformed: string;
+  notes?: string;
+  invoiceId?: string; // Null if not yet invoiced
+  // Rating fields (set later by customer)
+  serviceQualityRating?: number; // 0-5: Điểm chất lượng dịch vụ
+  staffAttitudeRating?: number; // 0-5: Điểm thái độ nhân viên
+  overallSatisfaction?: number; // 0-5: Mức độ hài lòng tổng thể
+  comment?: string; // Customer feedback comment
+  rated?: boolean; // Whether customer has rated this service
+  createdAt: string;
+}
+
+export interface VaccineUsed {
+  vaccineId: string;
+  vaccineName: string;
+  dosage: number;
+  administered: boolean; // For package injections tracking
+  monthMark?: number; // Cycle stage for package injections
+}
+
+// Inventory Management - Branch-based stock tracking
+export interface ProductInventory {
+  id: string;
+  branchId: string;
+  productId: string;
+  quantity: number;
+  lastRestocked?: string;
+  updatedAt: string;
+}
+
+export interface VaccineInventory {
+  id: string;
+  branchId: string;
+  vaccineId: string;
+  quantity: number;
+  lastRestocked?: string;
+  updatedAt: string;
+}
+
+export type StockStatus = "normal" | "low" | "critical" | "out";
+
+export interface StockAlert {
+  type: "product" | "vaccine";
+  itemId: string;
+  itemName: string;
+  branchId: string;
+  branchName: string;
+  quantity: number;
+  status: StockStatus;
 }

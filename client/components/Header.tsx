@@ -37,14 +37,17 @@ export default function Header() {
                 Home
               </Button>
             </Link>
+            <Link to="/shop">
+              <Button variant="ghost" className="text-foreground hover:text-primary">
+                Shop
+              </Button>
+            </Link>
             {user && user.role === "customer" && (
-              <>
-                <Link to="/store">
-                  <Button variant="ghost" className="text-foreground hover:text-primary">
-                    Shop
-                  </Button>
-                </Link>
-              </>
+              <Link to="/customer/booking">
+                <Button variant="ghost" className="text-foreground hover:text-primary">
+                  Service Booking
+                </Button>
+              </Link>
             )}
             <Link to="/appointments">
               <Button variant="ghost" className="text-foreground hover:text-primary">
@@ -108,13 +111,29 @@ export default function Header() {
                           <Link to="/orders" onClick={() => setIsUserMenuOpen(false)}>
                             <button className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-gray-100 flex items-center gap-2">
                               <ShoppingCart className="w-4 h-4" />
-                              Orders
+                              My Orders
+                            </button>
+                          </Link>
+                          <Link to="/customer/services" onClick={() => setIsUserMenuOpen(false)}>
+                            <button className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-gray-100 flex items-center gap-2">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                              </svg>
+                              My Services
+                            </button>
+                          </Link>
+                          <Link to="/customer/appointments" onClick={() => setIsUserMenuOpen(false)}>
+                            <button className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-gray-100 flex items-center gap-2">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              My Appointments
                             </button>
                           </Link>
                         </>
                       )}
                       {user.role !== "customer" && (
-                        <Link to={user.role === 'admin' ? '/admin/dashboard' : user.role === 'veterinarian' ? '/vet/dashboard' : user.role === 'receptionist' ? '/receptionist/dashboard' : user.role === 'pharmacist' ? '/pharmacist/dashboard' : '/admin/dashboard'} onClick={() => setIsUserMenuOpen(false)}>
+                        <Link to={user.role === 'admin' ? '/admin/dashboard' : user.role === 'veterinarian' ? '/vet/dashboard' : user.role === 'receptionist' ? '/receptionist/dashboard' : user.role === 'sales' ? '/sales/dashboard' : '/admin/dashboard'} onClick={() => setIsUserMenuOpen(false)}>
                           <button className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-gray-100 flex items-center gap-2">
                             <LayoutDashboard className="w-4 h-4" />
                             Dashboard
@@ -177,11 +196,22 @@ export default function Header() {
               </Button>
             </Link>
 
+            <Link to="/shop" onClick={() => setIsMenuOpen(false)}>
+              <Button variant="ghost" className="w-full justify-start text-foreground">
+                Shop
+              </Button>
+            </Link>
+
             {user && user.role === "customer" && (
               <>
-                <Link to="/store" onClick={() => setIsMenuOpen(false)}>
+                <Link to="/customer/booking" onClick={() => setIsMenuOpen(false)}>
                   <Button variant="ghost" className="w-full justify-start text-foreground">
-                    Shop
+                    Service Booking
+                  </Button>
+                </Link>
+                <Link to="/customer/appointments" onClick={() => setIsMenuOpen(false)}>
+                  <Button variant="ghost" className="w-full justify-start text-foreground">
+                    My Appointments
                   </Button>
                 </Link>
                 <Link to="/dashboard" onClick={() => setIsMenuOpen(false)}>

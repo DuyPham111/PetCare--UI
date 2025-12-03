@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { User, UserRole } from "@shared/types";
+import { DEFAULT_MEMBERSHIP_LEVEL } from "@/lib/membershipUtils";
 
 interface AuthContextType {
   user: User | null;
@@ -69,6 +70,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       password,
       fullName,
       role,
+      membershipLevel: role === "customer" ? DEFAULT_MEMBERSHIP_LEVEL : undefined,
       createdAt: new Date().toISOString(),
     };
 

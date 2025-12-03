@@ -1,12 +1,9 @@
 import VetHeader from "@/components/VetHeader";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import VetSummaryCard from "@/components/vet/VetSummaryCard";
-import VetNotificationsList from "@/components/vet/VetNotificationsList";
-import { sampleAppointments, sampleRecords, sampleNotifications } from "@/data/sampleVetData";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
-import { Navigate } from "react-router-dom";
+import { Calendar, FileText, Bell, PawPrint, ClipboardList, Activity } from "lucide-react";
 
 export default function VetDashboard() {
     const { user } = useAuth();
@@ -15,98 +12,156 @@ export default function VetDashboard() {
         return <Navigate to="/login" />;
     }
 
-    // using sample data for counts
-    const todaysCount = sampleAppointments.length;
-    const pendingRecords = sampleRecords.filter((r) => !r.diagnosis).length;
-    const unread = sampleNotifications.filter((n) => !n.read).length;
+    // Sample data for counts
+    const todaysAppointments = 5;
+    const pendingRecords = 3;
+    const assignedPets = 12;
+    const unreadNotifications = 8;
+
     return (
-        <div className="min-h-screen bg-white">
+        <div className="min-h-screen bg-background">
             <VetHeader />
 
-            {/* Hero Section (follows homepage style) */}
-            <section className="relative bg-gradient-to-br from-primary/5 via-white to-secondary/5 overflow-hidden pt-14 pb-12">
-                <div className="absolute inset-0 opacity-10 pointer-events-none">
-                    <div className="absolute top-10 right-20 w-72 h-72 bg-primary/10 rounded-full blur-3xl" />
-                    <div className="absolute -bottom-20 left-20 w-96 h-96 bg-secondary/10 rounded-full blur-3xl" />
-                </div>
-
-                <div className="container mx-auto px-4 relative z-10">
-                    <div className="grid md:grid-cols-2 gap-12 items-center">
-                        <div className="space-y-6">
-                            <div className="space-y-2">
-                                <h1 className="text-4xl md:text-5xl font-bold text-foreground leading-tight">Welcome, Dr. {user.fullName}</h1>
-                                <p className="text-lg text-muted-foreground">Quick snapshot of your day and clinical tools for efficient workflows.</p>
-                            </div>
-
-                            <div className="flex gap-4 flex-wrap">
-                                <Link to="/vet/appointments-today"><Button size="lg" className="bg-primary text-white">Today's Appointments</Button></Link>
-                                <Link to="/vet/medical-records"><Button size="lg" variant="outline" className="border-primary text-primary">Open Records</Button></Link>
-                            </div>
-
-                            <div className="flex gap-8 pt-4">
-                                <div>
-                                    <p className="text-3xl font-bold text-primary">{todaysCount}</p>
-                                    <p className="text-sm text-muted-foreground">Appointments today</p>
-                                </div>
-                                <div>
-                                    <p className="text-3xl font-bold text-primary">{pendingRecords}</p>
-                                    <p className="text-sm text-muted-foreground">Pending records</p>
-                                </div>
-                                <div>
-                                    <p className="text-3xl font-bold text-primary">{unread}</p>
-                                    <p className="text-sm text-muted-foreground">Unread notifications</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="relative">
-                            <div className="bg-gradient-to-br from-primary/20 to-secondary/20 rounded-2xl p-8 md:p-12">
-                                <div className="bg-white rounded-xl p-8 text-center space-y-4">
-                                    <div className="text-6xl">🩺</div>
-                                    <h3 className="text-2xl font-bold text-foreground">Clinical Dashboard</h3>
-                                    <p className="text-muted-foreground">Patient charts, recent labs, and follow-ups in one place.</p>
-                                </div>
-                            </div>
-                        </div>
+            <main className="container mx-auto px-4 py-8">
+                {/* Hero Section */}
+                <div className="bg-gradient-to-r from-blue-600 to-blue-400 text-white rounded-lg p-8 mb-8">
+                    <h1 className="text-3xl font-bold mb-2">Welcome, Dr. {user.fullName}</h1>
+                    <p className="text-blue-50 mb-4">Manage your appointments, medical records, and assigned pets</p>
+                    <div className="flex gap-4">
+                        <Link to="/vet/appointments-today">
+                            <Button variant="secondary" size="lg">
+                                Today's Appointments
+                            </Button>
+                        </Link>
+                        <Link to="/vet/medical-records">
+                            <Button variant="outline" size="lg" className="bg-transparent border-white text-white hover:bg-white/10">
+                                Medical Records
+                            </Button>
+                        </Link>
                     </div>
                 </div>
-            </section>
 
-            {/* Core content: summary cards & activity */}
-            <div className="container mx-auto px-4 py-8">
-                <div className="mb-6">
-                    <h2 className="text-2xl font-bold">Overview</h2>
-                    <p className="text-muted-foreground">Key shortcuts and recent items</p>
-                </div>
-
-                <div className="grid lg:grid-cols-3 gap-6">
-                    <VetSummaryCard count={todaysCount} label={"Today's Appointments"} to={'/vet/appointments-today'} />
-                    <VetSummaryCard count={pendingRecords} label={'Pending Medical Records'} to={'/vet/medical-records'} />
-                    <VetSummaryCard count={unread} label={'Unread Notifications'} to={'/vet/notifications'} />
-
-                    <Card className="p-6 border border-border lg:col-span-2">
-                        <h3 className="text-lg font-bold mb-3">Recent Activity</h3>
-                        <div className="space-y-3 text-sm text-muted-foreground">
-                            <div>New booking: Bella at 09:30</div>
-                            <div>Record updated: rec-201</div>
-                            <div>Medication low stock notice: Amoxicillin</div>
-                            <div>Customer feedback received for rec-202</div>
-                            <div>System maintenance scheduled tonight</div>
-                        </div>
-                        <div className="pt-4 flex gap-2">
-                            <Link to="/vet/appointments-today"><button className="bg-primary text-white px-3 py-2 rounded-md">Open Today's Appointments</button></Link>
-                            <Link to="/vet/medical-records"><button className="border px-3 py-2 rounded-md">Open Medical Records</button></Link>
-                            <Link to="/vet/assigned-pets"><button className="border px-3 py-2 rounded-md">Open Assigned Pets</button></Link>
-                            <Link to="/vet/profile"><button className="border px-3 py-2 rounded-md">Open Profile</button></Link>
-                        </div>
+                {/* Summary Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Today's Appointments</CardTitle>
+                            <Calendar className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{todaysAppointments}</div>
+                            <p className="text-xs text-muted-foreground">Scheduled for today</p>
+                        </CardContent>
                     </Card>
 
-                    <div className="lg:col-span-1">
-                        <h3 className="text-lg font-bold mb-3">Notifications</h3>
-                        <VetNotificationsList notifications={sampleNotifications} />
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Pending Records</CardTitle>
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{pendingRecords}</div>
+                            <p className="text-xs text-muted-foreground">Require attention</p>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Assigned Pets</CardTitle>
+                            <PawPrint className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{assignedPets}</div>
+                            <p className="text-xs text-muted-foreground">Under your care</p>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Notifications</CardTitle>
+                            <Bell className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{unreadNotifications}</div>
+                            <p className="text-xs text-muted-foreground">Unread messages</p>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                {/* Quick Actions */}
+                <div className="mb-8">
+                    <h2 className="text-2xl font-bold mb-4">Quick Actions</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <Link to="/vet/appointments-today">
+                            <Button className="w-full h-20 flex flex-col items-center justify-center gap-2 bg-primary text-white">
+                                <Calendar className="h-5 w-5" />
+                                <span>View Appointments</span>
+                            </Button>
+                        </Link>
+                        <Link to="/vet/medical-records">
+                            <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center gap-2">
+                                <FileText className="h-5 w-5" />
+                                <span>Medical Records</span>
+                            </Button>
+                        </Link>
+                        <Link to="/vet/assigned-pets">
+                            <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center gap-2">
+                                <PawPrint className="h-5 w-5" />
+                                <span>Assigned Pets</span>
+                            </Button>
+                        </Link>
+                        <Link to="/vet/notifications">
+                            <Button variant="outline" className="w-full h-20 flex flex-col items-center justify-center gap-2">
+                                <Bell className="h-5 w-5" />
+                                <span>Notifications</span>
+                            </Button>
+                        </Link>
                     </div>
                 </div>
-            </div>
+
+                {/* Recent Activity */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Activity className="h-5 w-5" />
+                            Recent Activity
+                        </CardTitle>
+                        <CardDescription>Your latest appointments and medical records</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between p-4 border border-border rounded-lg">
+                                <div>
+                                    <p className="font-medium">Appointment: Bella</p>
+                                    <p className="text-sm text-muted-foreground">09:30 AM - Routine checkup</p>
+                                </div>
+                                <span className="text-xs text-muted-foreground">Today</span>
+                            </div>
+                            <div className="flex items-center justify-between p-4 border border-border rounded-lg">
+                                <div>
+                                    <p className="font-medium">Medical Record Updated</p>
+                                    <p className="text-sm text-muted-foreground">Record #201 - Diagnosis completed</p>
+                                </div>
+                                <span className="text-xs text-muted-foreground">2 hours ago</span>
+                            </div>
+                            <div className="flex items-center justify-between p-4 border border-border rounded-lg">
+                                <div>
+                                    <p className="font-medium">New Pet Assigned</p>
+                                    <p className="text-sm text-muted-foreground">Max - German Shepherd</p>
+                                </div>
+                                <span className="text-xs text-muted-foreground">Yesterday</span>
+                            </div>
+                            <div className="flex items-center justify-between p-4 border border-border rounded-lg">
+                                <div>
+                                    <p className="font-medium">Medication Alert</p>
+                                    <p className="text-sm text-muted-foreground">Low stock: Amoxicillin</p>
+                                </div>
+                                <span className="text-xs text-muted-foreground">Yesterday</span>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            </main>
         </div>
     );
 }

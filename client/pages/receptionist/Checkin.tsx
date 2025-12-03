@@ -1,5 +1,5 @@
 import ReceptionHeader from "@/components/ReceptionHeader";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import CustomerCheckinTable from "@/components/receptionist/CustomerCheckinTable";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
@@ -21,14 +21,20 @@ export default function Checkin() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-background">
             <ReceptionHeader />
             <div className="container mx-auto px-4 py-8">
                 <h1 className="text-3xl font-bold mb-3">Customer Check-in</h1>
                 <p className="text-muted-foreground mb-6">Mark customer arrivals for today</p>
 
-                <Card className="p-6 border border-border">
-                    <CustomerCheckinTable />
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Check-in Desk</CardTitle>
+                        <CardDescription>View and process today's appointments</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <CustomerCheckinTable />
+                    </CardContent>
                 </Card>
             </div>
         </div>

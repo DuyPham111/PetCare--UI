@@ -15,7 +15,7 @@ interface Appointment {
   date: string;
   time: string;
   reason: string;
-  status: "pending" | "confirmed" | "completed";
+  status: "pending" | "checked-in" | "completed";
 }
 
 export default function Appointments() {
@@ -30,7 +30,7 @@ export default function Appointments() {
       date: "2024-02-15",
       time: "10:00 AM",
       reason: "Regular Check-up",
-      status: "confirmed",
+      status: "checked-in",
     },
   ]);
 
@@ -57,7 +57,7 @@ export default function Appointments() {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
+
     if (!formData.petName || !formData.ownerName || !formData.date || !formData.time) {
       alert("Please fill in all required fields");
       return;
@@ -86,7 +86,7 @@ export default function Appointments() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "confirmed":
+      case "checked-in":
         return "bg-green-50 border-green-200 text-green-700";
       case "pending":
         return "bg-yellow-50 border-yellow-200 text-yellow-700";
@@ -99,7 +99,7 @@ export default function Appointments() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case "confirmed":
+      case "checked-in":
       case "completed":
         return <CheckCircle className="w-4 h-4" />;
       default:

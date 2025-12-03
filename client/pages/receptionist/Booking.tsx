@@ -1,5 +1,5 @@
 import ReceptionHeader from "@/components/ReceptionHeader";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import AppointmentBookingForm from "@/components/receptionist/AppointmentBookingForm";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
@@ -23,7 +23,7 @@ export default function Booking() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-background">
             <ReceptionHeader />
             <div className="container mx-auto px-4 py-8">
                 <div className="mb-6">
@@ -31,8 +31,14 @@ export default function Booking() {
                     <p className="text-muted-foreground">Create a new appointment for a customer</p>
                 </div>
 
-                <Card className="p-6 border border-border max-w-3xl">
-                    <AppointmentBookingForm />
+                <Card className="max-w-3xl">
+                    <CardHeader>
+                        <CardTitle>Book New Appointment</CardTitle>
+                        <CardDescription>Fill in the details below to schedule an appointment</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <AppointmentBookingForm />
+                    </CardContent>
                 </Card>
             </div>
         </div>

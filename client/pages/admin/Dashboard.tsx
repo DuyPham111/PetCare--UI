@@ -1,9 +1,10 @@
-import AdminHeader from "@/components/AdminHeader";
+import AdminLayout from "@/components/AdminLayout";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
-import { useAppointments, useMedications, useInvoices, usePets } from "@/hooks/useHospitalData";
+import { useAppointments, useMedications, useInvoices, usePets, useBranches } from "@/hooks/useHospitalData";
 import { Calendar, AlertTriangle, DollarSign, Users, Pill, TrendingUp } from "lucide-react";
 import { Navigate } from "react-router-dom";
+import { useState } from "react";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -11,41 +12,58 @@ export default function Dashboard() {
   const { medications } = useMedications();
   const { invoices } = useInvoices();
   const { pets } = usePets();
+  const { branches } = useBranches();
+  // Default to admin's branch
+  const [selectedBranch, setSelectedBranch] = useState(user?.branchId || "all");
 
   // Redirect if not authenticated
   if (!user) {
     return <Navigate to="/login" />;
   }
 
+  // Filter data by branch
+  const filteredAppointments =
+    selectedBranch === "all"
+      ? appointments
+      : appointments.filter((a) => a.branchId === selectedBranch);
+
+  const filteredMedications =
+    selectedBranch === "all"
+      ? medications
+      : medications.filter((m) => m.branchId === selectedBranch);
+
+  const filteredInvoices =
+    selectedBranch === "all"
+      ? invoices
+      : invoices.filter((i) => i.branchId === selectedBranch);
+
   // Calculate metrics
-  const todayAppointments = appointments.filter((apt) => {
+  const todayAppointments = filteredAppointments.filter((apt) => {
     const aptDate = new Date(apt.appointmentDate).toDateString();
     const today = new Date().toDateString();
     return aptDate === today;
   });
 
-  const pendingInvoices = invoices.filter((inv) => inv.status === "pending");
-  const totalRevenue = invoices
+  const pendingInvoices = filteredInvoices.filter((inv) => inv.status === "pending");
+  const totalRevenue = filteredInvoices
     .filter((inv) => inv.status === "paid")
     .reduce((sum, inv) => sum + inv.total, 0);
 
-  const expiredMedications = medications.filter((med) => {
+  const expiredMedications = filteredMedications.filter((med) => {
     const expiryDate = new Date(med.expiryDate);
     return expiryDate < new Date();
   });
 
-  const lowStockMedications = medications.filter((med) => med.quantity <= med.reorderLevel);
+  const lowStockMedications = filteredMedications.filter((med) => med.quantity <= med.reorderLevel);
 
   const appointmentStatus = {
-    pending: appointments.filter((a) => a.status === "pending").length,
-    confirmed: appointments.filter((a) => a.status === "confirmed").length,
-    completed: appointments.filter((a) => a.status === "completed").length,
+    pending: filteredAppointments.filter((a) => a.status === "pending").length,
+    checkedIn: filteredAppointments.filter((a) => a.status === "checked-in").length,
+    completed: filteredAppointments.filter((a) => a.status === "completed").length,
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <AdminHeader />
-
+    <AdminLayout>
       <div className="container mx-auto px-4 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
@@ -54,6 +72,29 @@ export default function Dashboard() {
             Welcome back, {user.fullName}! Here's your hospital overview.
           </p>
         </div>
+
+        {/* Branch Filter */}
+        <Card className="p-4 mb-6 border border-border">
+          <div className="flex flex-wrap gap-4 items-center">
+            <div>
+              <label className="text-sm font-medium text-foreground block mb-2">
+                Filter by Branch
+              </label>
+              <select
+                value={selectedBranch}
+                onChange={(e) => setSelectedBranch(e.target.value)}
+                className="px-4 py-2 border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="all">All Branches</option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </Card>
 
         {/* Critical Alerts */}
         {(expiredMedications.length > 0 || lowStockMedications.length > 0) && (
@@ -141,9 +182,9 @@ export default function Dashboard() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-3 h-3 bg-blue-500 rounded-full" />
-                  <span className="text-foreground">Confirmed</span>
+                  <span className="text-foreground">Checked-In</span>
                 </div>
-                <span className="text-2xl font-bold text-foreground">{appointmentStatus.confirmed}</span>
+                <span className="text-2xl font-bold text-foreground">{appointmentStatus.checkedIn}</span>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -198,7 +239,7 @@ export default function Dashboard() {
                       {new Date(apt.appointmentDate).toLocaleDateString()} at {apt.appointmentTime}
                     </p>
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize ${apt.status === "confirmed"
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize ${apt.status === "checked-in"
                     ? "bg-green-100 text-green-700"
                     : apt.status === "pending"
                       ? "bg-yellow-100 text-yellow-700"
@@ -212,6 +253,6 @@ export default function Dashboard() {
           )}
         </Card>
       </div>
-    </div>
+    </AdminLayout>
   );
 }
