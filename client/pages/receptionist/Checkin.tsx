@@ -38,13 +38,11 @@ export default function Checkin() {
     }, []);
 
     const updateStatus = async (id: string, status: string) => {
-        try {
-            const resp = await apiPut(`/appointments/${id}`, { status });
-            const updated = resp?.data ?? resp;
-            setAppointments((prev) => prev.map(a => (a.id === id ? (updated || { ...a, status }) : a)));
-        } catch (e) {
-            console.error('Failed to update appointment', e);
-        }
+        // TODO: Backend endpoint PUT /api/appointments/:id does not exist
+        // This feature is disabled until backend implements appointment status update endpoint
+        console.warn('Appointment status update is not available - backend endpoint missing');
+        // Optionally show a toast notification
+        // toast({ title: 'Feature Unavailable', description: 'Appointment status updates require backend support', variant: 'destructive' });
     };
 
     return (

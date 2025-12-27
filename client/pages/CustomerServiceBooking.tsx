@@ -15,6 +15,7 @@ import { Pet, User as UserType, Appointment, Vaccine, VaccinePackage } from "@sh
 import { Calendar, Stethoscope, Syringe, Package, Eye, X, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiPost } from "@/api/api";
+import { toNumericId } from "@/lib/apiUtils";
 
 export default function CustomerServiceBooking() {
     const { user } = useAuth();
@@ -239,18 +240,29 @@ export default function CustomerServiceBooking() {
                 const local = new Date(`${examForm.date}T${examForm.time}:00`);
                 const appointment_time = local.toISOString();
 
+                // Backend requires customer_id, pet_id, branch_id, doctor_id, appointment_time
+                const customerId = toNumericId(user?.id);
+                const petId = toNumericId(examForm.petId);
+                const branchId = toNumericId(user?.branchId) || 1; // Default to 1 if not set
+                const doctorId = toNumericId(examForm.doctorId);
+
+                if (!customerId || !petId || !branchId || !doctorId) {
+                    toast({
+                        title: "Error",
+                        description: "Missing required information. Please ensure you're logged in and all fields are filled.",
+                        variant: "destructive",
+                    });
+                    return;
+                }
+
                 const payload = {
-                    // backend should infer customer from auth; do not send customer_id
-                    pet_id: examForm.petId,
-                    branch_id: user.branchId || "branch-1",
-                    doctor_id: examForm.doctorId,
-                    service_type: "medical-exam",
+                    customer_id: customerId,
+                    pet_id: petId,
+                    branch_id: branchId,
+                    doctor_id: doctorId,
                     appointment_time,
-                    reason: "Medical Examination",
-                    notes: examForm.notes,
                 };
 
-                // TODO: confirm backend accepts snake_case keys shown above (pet_id, doctor_id, service_type)
                 const resp = await apiPost('/appointments', payload);
 
                 // If backend returns created appointment in resp.data, append it to UI list
@@ -306,17 +318,29 @@ export default function CustomerServiceBooking() {
                 const local = new Date(`${singleDoseForm.date}T${singleDoseForm.time}:00`);
                 const appointment_time = local.toISOString();
 
+                // Backend requires customer_id, pet_id, branch_id, doctor_id, appointment_time
+                const customerId = toNumericId(user?.id);
+                const petId = toNumericId(singleDoseForm.petId);
+                const branchId = toNumericId(user?.branchId) || 1;
+                const doctorId = toNumericId(singleDoseForm.doctorId);
+
+                if (!customerId || !petId || !branchId || !doctorId) {
+                    toast({
+                        title: "Error",
+                        description: "Missing required information. Please ensure you're logged in and all fields are filled.",
+                        variant: "destructive",
+                    });
+                    return;
+                }
+
                 const payload = {
-                    pet_id: singleDoseForm.petId,
-                    branch_id: user.branchId || "branch-1",
-                    doctor_id: singleDoseForm.doctorId,
-                    service_type: "single-vaccine",
+                    customer_id: customerId,
+                    pet_id: petId,
+                    branch_id: branchId,
+                    doctor_id: doctorId,
                     appointment_time,
-                    reason: `Single-Dose Injection: ${vaccine?.name}`,
-                    notes: singleDoseForm.notes,
                 };
 
-                // TODO: confirm backend accepts the fields above
                 const resp = await apiPost('/appointments', payload);
                 const created = resp?.data;
                 if (created) setAppointments((prev) => [created as any, ...prev]);
@@ -368,17 +392,29 @@ export default function CustomerServiceBooking() {
                 const local = new Date(`${packageForm.date}T${packageForm.time}:00`);
                 const appointment_time = local.toISOString();
 
+                // Backend requires customer_id, pet_id, branch_id, doctor_id, appointment_time
+                const customerId = toNumericId(user?.id);
+                const petId = toNumericId(packageForm.petId);
+                const branchId = toNumericId(user?.branchId) || 1;
+                const doctorId = toNumericId(packageForm.doctorId);
+
+                if (!customerId || !petId || !branchId || !doctorId) {
+                    toast({
+                        title: "Error",
+                        description: "Missing required information. Please ensure you're logged in and all fields are filled.",
+                        variant: "destructive",
+                    });
+                    return;
+                }
+
                 const payload = {
-                    pet_id: packageForm.petId,
-                    branch_id: user.branchId || "branch-1",
-                    doctor_id: packageForm.doctorId,
-                    service_type: "vaccine-package",
+                    customer_id: customerId,
+                    pet_id: petId,
+                    branch_id: branchId,
+                    doctor_id: doctorId,
                     appointment_time,
-                    reason: `Package Injection: ${pkg?.name}`,
-                    notes: packageForm.notes,
                 };
 
-                // TODO: confirm backend accepts package bookings with these fields
                 const resp = await apiPost('/appointments', payload);
                 const created = resp?.data;
                 if (created) setAppointments((prev) => [created as any, ...prev]);

@@ -12,6 +12,7 @@ import { Navigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiGet, apiPost } from "@/api/api";
+import { toNumericId } from "@/lib/apiUtils";
 import { MedicalRecord, PrescriptionItem } from "@shared/types";
 import { Plus, Trash2 } from "lucide-react";
 
@@ -40,13 +41,19 @@ export default function MedicalRecords() {
         let mounted = true;
         (async () => {
             try {
-                // TODO: confirm endpoint /api/vets/assigned-pets returns owner info as needed
-                const resp = await apiGet('/vets/assigned-pets');
-                const data = resp?.data ?? resp ?? [];
+                // TODO: Backend endpoint GET /api/vets/assigned-pets does not exist
+                // Using /api/pets endpoint as fallback (requires proper role permissions)
+                // This is a workaround until backend implements the assigned-pets endpoint
+                const resp = await apiGet('/pets');
+                const data = resp?.data?.rows ?? resp?.data ?? resp ?? [];
                 if (!mounted) return;
-                setPets(data as any[]);
-            } catch (err) {
-                console.error('Failed to load assigned pets', err);
+                // Filter to show only pets (backend may return all pets, frontend should filter by doctor if needed)
+                setPets(Array.isArray(data) ? data : []);
+            } catch (err: any) {
+                console.error('Failed to load assigned pets - using fallback endpoint', err);
+                if (!mounted) return;
+                // Set empty array on error to prevent UI breakage
+                setPets([]);
             }
         })();
         return () => { mounted = false; };
@@ -60,15 +67,17 @@ export default function MedicalRecords() {
             setLoadingRecords(true);
             setRecordsError(null);
             try {
-                // Expected backend endpoint: GET /api/pets/:petId/medical-records
-                const resp = await apiGet(`/pets/${selectedPetId}/medical-records`);
-                const data = resp?.data ?? resp ?? [];
+                // TODO: Backend endpoint GET /api/pets/:petId/medical-records does not exist
+                // This feature is disabled until backend implements the endpoint
+                // For now, show empty records with a message
+                console.warn('Medical records endpoint not available - backend endpoint missing');
                 if (!mounted) return;
-                setFetchedRecords(data as MedicalRecord[]);
+                setFetchedRecords([]);
+                setRecordsError('Medical records feature requires backend endpoint /api/pets/:petId/medical-records');
             } catch (err: any) {
                 console.error('Failed to load medical records', err);
                 if (!mounted) return;
-                setRecordsError(err?.message || 'Failed to load records');
+                setRecordsError(err?.message || 'Failed to load records - endpoint not implemented');
             } finally {
                 if (mounted) setLoadingRecords(false);
             }
@@ -83,8 +92,15 @@ export default function MedicalRecords() {
         }
         setCreating(true);
         try {
+            // Convert pet_id to number (backend expects BIGINT)
+            const petIdNum = toNumericId(selectedPetId);
+            if (!petIdNum) {
+                toast({ title: 'Error', description: 'Invalid pet ID', variant: 'destructive' });
+                return;
+            }
+
             const payload: any = {
-                pet_id: selectedPetId,
+                pet_id: petIdNum,
                 diagnosis: formData.diagnosis,
                 conclusion: formData.conclusion,
                 appointment_date: formData.createdAt || new Date().toISOString(),
@@ -92,7 +108,8 @@ export default function MedicalRecords() {
                 temperature: (formData as any).temperature,
                 blood_pressure: (formData as any).bloodPressure,
                 symptoms: formData.symptoms,
-                prescription: prescriptionItems,
+                // Note: prescription is not accepted by backend fn_create_exam_record, but keeping for future compatibility
+                // prescription: prescriptionItems,
             };
 
             // TODO: confirm backend expects snake_case keys as above and returns created object in data

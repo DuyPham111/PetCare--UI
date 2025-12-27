@@ -25,15 +25,26 @@ export default function Dashboard() {
       setLoading(true);
       setError(null);
       try {
-        // TODO: confirm backend endpoints and response envelopes. We expect
-        // GET /api/appointments -> array or { data: [] }
-        // GET /api/invoices -> array or { data: [] }
-        const [apptsResp, invResp] = await Promise.all([apiGet('/appointments'), apiGet('/invoices')]);
+        // Use manager statistics endpoints instead of non-existent /api/invoices
+        // Backend provides: /api/manager/statistics/appointments and /api/manager/statistics/revenue/branch
+        const [apptsResp, revenueResp] = await Promise.all([
+          apiGet('/appointments'),
+          apiGet('/manager/statistics/revenue/branch').catch(() => ({ data: [] })) // Gracefully handle if not manager role
+        ]);
         const appts = apptsResp?.data ?? apptsResp ?? [];
-        const invs = invResp?.data ?? invResp ?? [];
+        const revenueData = revenueResp?.data ?? [];
         if (!mounted) return;
         setAppointments(Array.isArray(appts) ? appts : []);
-        setInvoices(Array.isArray(invs) ? invs : []);
+        // Calculate total revenue from revenue statistics
+        const totalRev = Array.isArray(revenueData)
+          ? revenueData.reduce((sum: number, r: any) => sum + (Number(r.v_total_revenue || r.total_revenue || 0)), 0)
+          : 0;
+        // Mock invoices array from revenue data for display compatibility
+        setInvoices(revenueData.map((r: any, idx: number) => ({
+          id: r.v_id || r.id || idx,
+          total: r.v_total_revenue || r.total_revenue || 0,
+          status: 'paid' // Assume paid for revenue stats
+        })));
       } catch (e: any) {
         console.error('Failed to load admin data', e);
         if (!mounted) return;

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { normalizeAppointmentPayload, toNumericId } from "@/lib/apiUtils";
 
 export default function AppointmentBookingForm() {
     const { toast } = useToast();
@@ -26,19 +27,26 @@ export default function AppointmentBookingForm() {
     async function saveAppointment() {
         setIsSaving(true);
         try {
-            // TODO: confirm backend expects these camelCase keys and separate date/time fields
-            const payload = {
+            // Normalize payload to backend format (snake_case, TIMESTAMPTZ)
+            const normalized = normalizeAppointmentPayload({
                 customerId,
                 petId,
-                veterinarianId: vetId || undefined,
-                serviceId,
+                veterinarianId: vetId,
                 branchId: branch,
                 appointmentDate: date,
                 appointmentTime: time,
-                status: "scheduled",
-            };
+            });
 
-            const resp = await apiPost('/appointments', payload);
+            if (!normalized) {
+                toast({ 
+                    title: "Error", 
+                    description: "Missing required fields. Please fill in all fields.", 
+                    variant: 'destructive' 
+                });
+                return;
+            }
+
+            const resp = await apiPost('/appointments', normalized);
             // Accept either { data: ... } or direct object
             const created = resp?.data ?? resp;
             if (created) {

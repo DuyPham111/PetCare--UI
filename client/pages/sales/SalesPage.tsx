@@ -13,6 +13,7 @@ import { mockPetItems } from "@/lib/mockData";
 import { Trash2, Search, ShoppingCart, AlertTriangle, PackageX } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiPost } from "@/api/api";
+import { toNumericId } from "@/lib/apiUtils";
 import {
     getProductStock,
     validateProductStock,
@@ -196,9 +197,14 @@ export default function SalesPage() {
         (async () => {
             setIsSubmitting(true);
             try {
+                // Convert branch_id and product_id to numbers (backend expects BIGINT)
+                const branchIdNum = toNumericId(branchId) || 1; // Default to 1 if not set
                 const payload = {
-                    branch_id: branchId,
-                    items: cart.map(i => ({ product_id: i.id, quantity: i.quantity })),
+                    branch_id: branchIdNum,
+                    items: cart.map(i => ({ 
+                        product_id: toNumericId(i.id) || Number(i.id), 
+                        quantity: i.quantity 
+                    })),
                     payment_method: paymentMethod === 'cash' ? 'Tiền mặt' : paymentMethod === 'card' ? 'Thẻ' : 'Chuyển khoản'
                 };
 

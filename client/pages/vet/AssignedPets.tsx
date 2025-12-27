@@ -28,20 +28,22 @@ export default function AssignedPets() {
             setLoading(true);
             setError(null);
             try {
-                // TODO: Confirm backend endpoint: GET /api/vets/assigned-pets returns array of pets with owner info.
-                const resp = await apiGet('/vets/assigned-pets');
-                // backend may return { data: [...] } or direct array
-                const data = resp?.data ?? resp ?? [];
+                // TODO: Backend endpoint GET /api/vets/assigned-pets does not exist
+                // Using /api/pets endpoint as fallback (requires proper role permissions)
+                // This is a workaround until backend implements the assigned-pets endpoint
+                const resp = await apiGet('/pets');
+                // backend may return { data: { rows: [...], meta: {...} } } or { data: [...] } or direct array
+                const data = resp?.data?.rows ?? resp?.data ?? resp ?? [];
                 if (!mounted) return;
-                setPets(data as Pet[]);
+                setPets(Array.isArray(data) ? data : []);
 
                 // Optionally backend may include owner info; fall back to empty customers/serviceInstances
                 setCustomers([]);
                 setServiceInstances([]);
             } catch (err: any) {
-                console.error('Failed to load assigned pets', err);
+                console.error('Failed to load assigned pets - using fallback endpoint', err);
                 if (!mounted) return;
-                setError(err?.message || 'Failed to load assigned pets');
+                setError(err?.message || 'Failed to load assigned pets - endpoint not fully implemented');
             } finally {
                 if (mounted) setLoading(false);
             }

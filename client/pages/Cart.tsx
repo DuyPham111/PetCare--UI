@@ -69,9 +69,17 @@ export default function Cart() {
       setIsPlacingOrder(true);
       try {
         // Build payload expected by backend
+        // Convert branch_id to number (backend expects BIGINT)
+        const branchId = typeof user.branchId === 'number' 
+          ? user.branchId 
+          : (user.branchId ? Number(user.branchId) : 1);
+        
         const payload = {
-          branch_id: user.branchId || "branch-1",
-          items: items.map((it) => ({ product_id: it.id, quantity: it.quantity })),
+          branch_id: branchId,
+          items: items.map((it) => ({ 
+            product_id: typeof it.id === 'number' ? it.id : Number(it.id), 
+            quantity: it.quantity 
+          })),
           payment_method: "Tiền mặt",
         };
 

@@ -8,6 +8,7 @@ import { Navigate, Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiGet, apiPut } from "@/api/api";
+import { toBackendStatus } from "@/lib/apiUtils";
 import { Syringe, Package } from "lucide-react";
 
 interface Appointment {
@@ -78,11 +79,13 @@ export default function TodayAppointments() {
     const [updatingId, setUpdatingId] = useState<string | null>(null);
 
     const handleComplete = async (id: string) => {
-        // Call backend to update appointment status
+        // TODO: Backend endpoint PUT /api/appointments/:id does not exist
+        // This feature is disabled until backend implements appointment status update endpoint
         setUpdatingId(id);
         try {
-            // Use PUT as update; if backend requires PATCH change to api.request('PATCH', ...)
-            await apiPut(`/appointments/${id}`, { status: 'Completed' });
+            // Attempt to call endpoint (will fail gracefully)
+            const backendStatus = toBackendStatus('Completed');
+            await apiPut(`/appointments/${id}`, { status: backendStatus });
             setAppointments(prevAppointments =>
                 prevAppointments.map(apt =>
                     apt.id === id ? { ...apt, status: 'Completed' } : apt
@@ -90,8 +93,12 @@ export default function TodayAppointments() {
             );
             toast({ title: 'Appointment Completed', description: 'The appointment has been marked as completed.' });
         } catch (err: any) {
-            console.error('Failed to update appointment status', err);
-            toast({ title: 'Error', description: err?.message || 'Failed to update appointment', variant: 'destructive' });
+            console.error('Failed to update appointment status - endpoint not implemented', err);
+            toast({ 
+                title: 'Feature Unavailable', 
+                description: 'Appointment status updates require backend support. Please contact administrator.', 
+                variant: 'destructive' 
+            });
         } finally {
             setUpdatingId(null);
         }
