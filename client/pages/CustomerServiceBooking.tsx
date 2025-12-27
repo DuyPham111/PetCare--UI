@@ -14,6 +14,7 @@ import { useState, useEffect } from "react";
 import { Pet, User as UserType, Appointment, Vaccine, VaccinePackage } from "@shared/types";
 import { Calendar, Stethoscope, Syringe, Package, Eye, X, ChevronDown, ChevronUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiPost } from "@/api/api";
 
 export default function CustomerServiceBooking() {
     const { user } = useAuth();
@@ -61,6 +62,8 @@ export default function CustomerServiceBooking() {
         single: string[];
         package: string[];
     }>({ exam: [], single: [], package: [] });
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitError, setSubmitError] = useState<string | null>(null);
 
     if (!user || user.role !== "customer") {
         return <Navigate to="/login" />;
@@ -150,6 +153,8 @@ export default function CustomerServiceBooking() {
     }, [packageForm.doctorId, packageForm.date, user.branchId]);
 
     const loadData = () => {
+        // TODO: migrate this to use backend GET /api/me/appointments
+        // once available; currently reads localStorage for compatibility with existing UI.
         try {
             // Load customer's pets
             const allPets = JSON.parse(localStorage.getItem("petcare_pets") || "[]");
@@ -224,50 +229,54 @@ export default function CustomerServiceBooking() {
             });
             return;
         }
+        (async () => {
+            setIsSubmitting(true);
+            setSubmitError(null);
+            try {
+                const pet = pets.find((p) => p.id === examForm.petId);
+                const vet = vets.find((v) => String(v.id) === String(examForm.doctorId));
 
-        try {
-            const pet = pets.find((p) => p.id === examForm.petId);
-            const vet = vets.find((v) => String(v.id) === String(examForm.doctorId));
+                const local = new Date(`${examForm.date}T${examForm.time}:00`);
+                const appointment_time = local.toISOString();
 
-            // combine date + selected time into ISO datetime for appointment_time
-            const local = new Date(`${examForm.date}T${examForm.time}:00`);
-            const appointment_time = local.toISOString();
+                const payload = {
+                    // backend should infer customer from auth; do not send customer_id
+                    pet_id: examForm.petId,
+                    branch_id: user.branchId || "branch-1",
+                    doctor_id: examForm.doctorId,
+                    service_type: "medical-exam",
+                    appointment_time,
+                    reason: "Medical Examination",
+                    notes: examForm.notes,
+                };
 
-            const newAppointment: any = {
-                id: generateAppointmentId(),
-                petId: examForm.petId,
-                customerId: user.id,
-                branchId: user.branchId || "branch-1",
-                doctorId: examForm.doctorId,
-                serviceType: "medical-exam",
-                appointment_time,
-                reason: "Medical Examination",
-                status: "checked-in",
-                notes: examForm.notes,
-                createdAt: new Date().toISOString(),
-            };
+                // TODO: confirm backend accepts snake_case keys shown above (pet_id, doctor_id, service_type)
+                const resp = await apiPost('/appointments', payload);
 
-            const allAppointments = JSON.parse(localStorage.getItem("petcare_appointments") || "[]");
-            allAppointments.push(newAppointment);
-            localStorage.setItem("petcare_appointments", JSON.stringify(allAppointments));
+                // If backend returns created appointment in resp.data, append it to UI list
+                const created = resp?.data;
+                if (created) {
+                    setAppointments((prev) => [created as any, ...prev]);
+                }
 
-            toast({
-                title: "Appointment booked successfully!",
-                description: `Medical exam for ${pet?.name} scheduled with ${vet?.fullName}`,
-            });
+                toast({
+                    title: "Appointment booked successfully!",
+                    description: `Medical exam for ${pet?.name} scheduled with ${vet?.fullName}`,
+                });
 
-            // Reset form
-            setExamForm({ petId: "", doctorId: "", date: "", time: "", notes: "" });
-
-            loadData();
-        } catch (error) {
-            console.error("Error booking appointment:", error);
-            toast({
-                title: "Error",
-                description: "Failed to book appointment. Please try again.",
-                variant: "destructive",
-            });
-        }
+                setExamForm({ petId: "", doctorId: "", date: "", time: "", notes: "" });
+            } catch (error: any) {
+                console.error("Error booking appointment:", error);
+                setSubmitError(error?.message || 'Failed to book appointment');
+                toast({
+                    title: "Error",
+                    description: error?.message || "Failed to book appointment. Please try again.",
+                    variant: "destructive",
+                });
+            } finally {
+                setIsSubmitting(false);
+            }
+        })();
     };
 
     const handleSingleDoseSubmit = (e: React.FormEvent) => {
@@ -286,50 +295,50 @@ export default function CustomerServiceBooking() {
             });
             return;
         }
+        (async () => {
+            setIsSubmitting(true);
+            setSubmitError(null);
+            try {
+                const pet = pets.find((p) => p.id === singleDoseForm.petId);
+                const vaccine = vaccines.find((v) => v.id === singleDoseForm.vaccineId);
+                const vet = vets.find((v) => String(v.id) === String(singleDoseForm.doctorId));
 
-        try {
-            const pet = pets.find((p) => p.id === singleDoseForm.petId);
-            const vaccine = vaccines.find((v) => v.id === singleDoseForm.vaccineId);
-            const vet = vets.find((v) => String(v.id) === String(singleDoseForm.doctorId));
+                const local = new Date(`${singleDoseForm.date}T${singleDoseForm.time}:00`);
+                const appointment_time = local.toISOString();
 
-            const local = new Date(`${singleDoseForm.date}T${singleDoseForm.time}:00`);
-            const appointment_time = local.toISOString();
+                const payload = {
+                    pet_id: singleDoseForm.petId,
+                    branch_id: user.branchId || "branch-1",
+                    doctor_id: singleDoseForm.doctorId,
+                    service_type: "single-vaccine",
+                    appointment_time,
+                    reason: `Single-Dose Injection: ${vaccine?.name}`,
+                    notes: singleDoseForm.notes,
+                };
 
-            const newAppointment: any = {
-                id: generateAppointmentId(),
-                petId: singleDoseForm.petId,
-                customerId: user.id,
-                branchId: user.branchId || "branch-1",
-                doctorId: singleDoseForm.doctorId,
-                serviceType: "single-vaccine",
-                appointment_time,
-                reason: `Single-Dose Injection: ${vaccine?.name}`,
-                status: "checked-in",
-                notes: singleDoseForm.notes,
-                createdAt: new Date().toISOString(),
-            };
+                // TODO: confirm backend accepts the fields above
+                const resp = await apiPost('/appointments', payload);
+                const created = resp?.data;
+                if (created) setAppointments((prev) => [created as any, ...prev]);
 
-            const allAppointments = JSON.parse(localStorage.getItem("petcare_appointments") || "[]");
-            allAppointments.push(newAppointment);
-            localStorage.setItem("petcare_appointments", JSON.stringify(allAppointments));
+                toast({
+                    title: "Appointment booked successfully!",
+                    description: `${vaccine?.name} injection for ${pet?.name} scheduled with ${vet?.fullName}`,
+                });
 
-            toast({
-                title: "Appointment booked successfully!",
-                description: `${vaccine?.name} injection for ${pet?.name} scheduled with ${vet?.fullName}`,
-            });
-
-            // Reset form
-            setSingleDoseForm({ petId: "", vaccineId: "", doctorId: "", date: "", time: "", notes: "" });
-
-            loadData();
-        } catch (error) {
-            console.error("Error booking appointment:", error);
-            toast({
-                title: "Error",
-                description: "Failed to book appointment. Please try again.",
-                variant: "destructive",
-            });
-        }
+                setSingleDoseForm({ petId: "", vaccineId: "", doctorId: "", date: "", time: "", notes: "" });
+            } catch (error: any) {
+                console.error("Error booking appointment:", error);
+                setSubmitError(error?.message || 'Failed to book appointment');
+                toast({
+                    title: "Error",
+                    description: error?.message || "Failed to book appointment. Please try again.",
+                    variant: "destructive",
+                });
+            } finally {
+                setIsSubmitting(false);
+            }
+        })();
     };
 
     const handlePackageSubmit = (e: React.FormEvent) => {
@@ -348,52 +357,52 @@ export default function CustomerServiceBooking() {
             });
             return;
         }
+        (async () => {
+            setIsSubmitting(true);
+            setSubmitError(null);
+            try {
+                const pet = pets.find((p) => p.id === packageForm.petId);
+                const pkg = packages.find((p) => p.id === packageForm.packageId);
+                const vet = vets.find((v) => String(v.id) === String(packageForm.doctorId));
 
-        try {
-            const pet = pets.find((p) => p.id === packageForm.petId);
-            const pkg = packages.find((p) => p.id === packageForm.packageId);
-            const vet = vets.find((v) => String(v.id) === String(packageForm.doctorId));
+                const local = new Date(`${packageForm.date}T${packageForm.time}:00`);
+                const appointment_time = local.toISOString();
 
-            const local = new Date(`${packageForm.date}T${packageForm.time}:00`);
-            const appointment_time = local.toISOString();
+                const payload = {
+                    pet_id: packageForm.petId,
+                    branch_id: user.branchId || "branch-1",
+                    doctor_id: packageForm.doctorId,
+                    service_type: "vaccine-package",
+                    appointment_time,
+                    reason: `Package Injection: ${pkg?.name}`,
+                    notes: packageForm.notes,
+                };
 
-            const newAppointment: any = {
-                id: generateAppointmentId(),
-                petId: packageForm.petId,
-                customerId: user.id,
-                branchId: user.branchId || "branch-1",
-                doctorId: packageForm.doctorId,
-                serviceType: "vaccine-package",
-                appointment_time,
-                reason: `Package Injection: ${pkg?.name}`,
-                status: "checked-in",
-                notes: packageForm.notes,
-                createdAt: new Date().toISOString(),
-            };
+                // TODO: confirm backend accepts package bookings with these fields
+                const resp = await apiPost('/appointments', payload);
+                const created = resp?.data;
+                if (created) setAppointments((prev) => [created as any, ...prev]);
 
-            const allAppointments = JSON.parse(localStorage.getItem("petcare_appointments") || "[]");
-            allAppointments.push(newAppointment);
-            localStorage.setItem("petcare_appointments", JSON.stringify(allAppointments));
+                toast({
+                    title: "Appointment booked successfully!",
+                    description: `${pkg?.name} for ${pet?.name} scheduled with ${vet?.fullName}`,
+                });
 
-            toast({
-                title: "Appointment booked successfully!",
-                description: `${pkg?.name} for ${pet?.name} scheduled with ${vet?.fullName}`,
-            });
-
-            // Reset form
-            setPackageForm({ petId: "", packageId: "", doctorId: "", date: "", time: "", notes: "" });
-            setSelectedPackage(null);
-            setShowPackageDetails(false);
-
-            loadData();
-        } catch (error) {
-            console.error("Error booking appointment:", error);
-            toast({
-                title: "Error",
-                description: "Failed to book appointment. Please try again.",
-                variant: "destructive",
-            });
-        }
+                setPackageForm({ petId: "", packageId: "", doctorId: "", date: "", time: "", notes: "" });
+                setSelectedPackage(null);
+                setShowPackageDetails(false);
+            } catch (error: any) {
+                console.error("Error booking appointment:", error);
+                setSubmitError(error?.message || 'Failed to book appointment');
+                toast({
+                    title: "Error",
+                    description: error?.message || "Failed to book appointment. Please try again.",
+                    variant: "destructive",
+                });
+            } finally {
+                setIsSubmitting(false);
+            }
+        })();
     };
 
     const handleCancelAppointment = (appointmentId: string) => {
@@ -649,9 +658,9 @@ export default function CustomerServiceBooking() {
                                         />
                                     </div>
 
-                                    <Button type="submit" className="w-full">
+                                    <Button type="submit" className="w-full" disabled={isSubmitting}>
                                         <Calendar className="h-4 w-4 mr-2" />
-                                        Book Medical Exam
+                                        {isSubmitting ? "Booking..." : "Book Medical Exam"}
                                     </Button>
                                 </form>
                             </CardContent>
@@ -822,9 +831,9 @@ export default function CustomerServiceBooking() {
                                         />
                                     </div>
 
-                                    <Button type="submit" className="w-full">
+                                    <Button type="submit" className="w-full" disabled={isSubmitting}>
                                         <Calendar className="h-4 w-4 mr-2" />
-                                        Book Single-Dose Injection
+                                        {isSubmitting ? "Booking..." : "Book Single-Dose Injection"}
                                     </Button>
                                 </form>
                             </CardContent>
@@ -1073,9 +1082,9 @@ export default function CustomerServiceBooking() {
                                         />
                                     </div>
 
-                                    <Button type="submit" className="w-full">
+                                    <Button type="submit" className="w-full" disabled={isSubmitting}>
                                         <Calendar className="h-4 w-4 mr-2" />
-                                        Book Package Injection
+                                        {isSubmitting ? "Booking..." : "Book Package Injection"}
                                     </Button>
                                 </form>
                             </CardContent>

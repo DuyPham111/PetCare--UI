@@ -7,11 +7,13 @@ import { Link, Navigate } from "react-router-dom";
 import { Trash2, ShoppingBag, ArrowLeft } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Order, OrderItem, LoyaltyAccount, LOYALTY_CONFIG } from "@shared/types";
+import { apiPost } from "@/api/api";
 
 export default function Cart() {
   const { user } = useAuth();
   const { items, removeItem, updateQuantity, clearCart } = useCart();
   const [loyalty, setLoyalty] = useState<LoyaltyAccount | null>(null);
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
   // Redirect to login if not authenticated
   if (!user) {
@@ -53,80 +55,41 @@ export default function Cart() {
   const pointsEarned = Math.floor(total * LOYALTY_CONFIG.pointsPerVND);
 
   const handleCheckout = () => {
-    if (items.length === 0) {
-      alert("Your cart is empty");
-      return;
-    }
-
-    if (!user) {
-      alert("Please login first");
-      return;
-    }
-
-    // Create new order
-    const orderItems: OrderItem[] = items.map((item) => ({
-      id: `oi-${Date.now()}-${Math.random()}`,
-      itemId: item.id,
-      itemName: item.name,
-      quantity: item.quantity,
-      unitPrice: item.price,
-      total: item.price * item.quantity,
-    }));
-
-    const newOrder: Order = {
-      id: `order-${Date.now()}`,
-      customerId: user.id,
-      items: orderItems,
-      subtotal,
-      tax,
-      loyaltyPointsApplied: pointsEarned,
-      loyaltyDiscount,
-      total,
-      status: "confirmed",
-      createdAt: new Date().toISOString(),
-    };
-
-    // Save order
-    const allOrders = JSON.parse(localStorage.getItem("petcare_orders") || "[]");
-    allOrders.push(newOrder);
-    localStorage.setItem("petcare_orders", JSON.stringify(allOrders));
-
-    // Update inventory
-    const allProducts = JSON.parse(localStorage.getItem("petcare_pet_items") || "[]");
-    items.forEach((cartItem) => {
-      const product = allProducts.find((p: any) => p.id === cartItem.id);
-      if (product) {
-        product.stock -= cartItem.quantity;
+    (async () => {
+      if (items.length === 0) {
+        alert("Your cart is empty");
+        return;
       }
-    });
-    localStorage.setItem("petcare_pet_items", JSON.stringify(allProducts));
 
-    // Update loyalty points
-    if (loyalty) {
-      const allLoyalty = JSON.parse(localStorage.getItem("petcare_loyalty") || "[]");
-      const loyaltyIndex = allLoyalty.findIndex(
-        (l: LoyaltyAccount) => l.customerId === user.id
-      );
-      if (loyaltyIndex >= 0) {
-        allLoyalty[loyaltyIndex].points += pointsEarned;
-        allLoyalty[loyaltyIndex].totalSpent += total;
-        // Update tier
-        if (allLoyalty[loyaltyIndex].totalSpent >= 12000000) {
-          allLoyalty[loyaltyIndex].tier = "gold";
-        } else if (allLoyalty[loyaltyIndex].totalSpent >= 5000000) {
-          allLoyalty[loyaltyIndex].tier = "silver";
-        }
-        allLoyalty[loyaltyIndex].updatedAt = new Date().toISOString();
-        localStorage.setItem("petcare_loyalty", JSON.stringify(allLoyalty));
+      if (!user) {
+        alert("Please login first");
+        return;
       }
-    }
 
-    // Clear cart
-    clearCart();
+      setIsPlacingOrder(true);
+      try {
+        // Build payload expected by backend
+        const payload = {
+          branch_id: user.branchId || "branch-1",
+          items: items.map((it) => ({ product_id: it.id, quantity: it.quantity })),
+          payment_method: "Tiền mặt",
+        };
 
-    // Show success message and redirect
-    alert("Order placed successfully!");
-    window.location.href = "/orders";
+        const resp = await apiPost('/orders/buy', payload);
+
+        // TODO: backend response shape should include created order id (resp.data or resp.data.order_id)
+        // If backend returns invoice or order id, consider storing or showing it.
+
+        clearCart();
+        alert('Order placed successfully!');
+        window.location.href = '/orders';
+      } catch (err: any) {
+        console.error('Checkout error', err);
+        alert(err?.message || 'Failed to place order');
+      } finally {
+        setIsPlacingOrder(false);
+      }
+    })();
   };
 
   return (
@@ -269,8 +232,9 @@ export default function Cart() {
                     onClick={handleCheckout}
                     className="w-full bg-primary hover:bg-primary/90 text-white"
                     size="lg"
+                    disabled={isPlacingOrder}
                   >
-                    Proceed to Checkout
+                    {isPlacingOrder ? 'Placing order...' : 'Proceed to Checkout'}
                   </Button>
 
                   <Button

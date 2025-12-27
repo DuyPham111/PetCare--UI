@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Calendar, Clock, User, Mail, Phone, AlertCircle, CheckCircle } from "lucide-react";
 import { Link } from "react-router-dom";
+import { apiGet } from "@/api/api";
 
 interface Appointment {
   id: string;
@@ -23,20 +24,7 @@ interface Appointment {
 }
 
 export default function Appointments() {
-  const [appointments, setAppointments] = useState<Appointment[]>([
-    {
-      id: "1",
-      petName: "Max",
-      petType: "Dog",
-      ownerName: "John Doe",
-      ownerEmail: "john@example.com",
-      ownerPhone: "(555) 123-4567",
-      date: "2024-02-15",
-      time: "10:00 AM",
-      reason: "Regular Check-up",
-      status: "checked-in",
-    },
-  ]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
 
   const [formData, setFormData] = useState({
     petName: "",
@@ -63,6 +51,36 @@ export default function Appointments() {
     } catch {
       setVets([]);
     }
+  }, []);
+
+  // Fetch appointments from backend on mount (use credentials to send cookies)
+  useEffect(() => {
+    let mounted = true;
+    const fetchAppointments = async () => {
+      try {
+        const body = await apiGet('/appointments');
+        const rows = body?.data ?? [];
+        const mapped = (rows as any[]).map((r) => ({
+          id: String(r.id),
+          petName: r.pet_name || (r.pet && (r.pet.name || r.pet.pet_name)) || (r.pet_id ? `Pet #${r.pet_id}` : 'Unknown'),
+          petType: r.pet_type || (r.pet && r.pet.type) || 'Unknown',
+          ownerName: r.owner_name || (r.owner && (r.owner.full_name || r.owner.name)) || (r.owner_id ? `Owner #${r.owner_id}` : 'Unknown'),
+          ownerEmail: r.owner_email || (r.owner && r.owner.email) || '',
+          ownerPhone: r.owner_phone || (r.owner && r.owner.phone) || '',
+          appointment_time: r.appointment_time || r.appointment_time,
+          date: r.appointment_time ? new Date(r.appointment_time).toISOString().split('T')[0] : r.date || undefined,
+          time: r.appointment_time ? new Date(r.appointment_time).toTimeString().slice(0, 5) : r.time || undefined,
+          doctorId: r.doctor_id ? String(r.doctor_id) : undefined,
+          reason: r.reason || r.notes || '',
+          status: (r.status || 'pending') as any,
+        }));
+        if (mounted) setAppointments(mapped as Appointment[]);
+      } catch (err) {
+        setAppointments([]);
+      }
+    };
+    fetchAppointments();
+    return () => { mounted = false; };
   }, []);
 
   const extractDateFromAppointment = (apt: Appointment) => {

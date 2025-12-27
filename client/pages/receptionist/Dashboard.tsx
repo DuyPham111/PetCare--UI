@@ -4,16 +4,45 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { Calendar, UserPlus, Search, CreditCard, Activity } from "lucide-react";
+import { useEffect, useState } from "react";
+import { apiGet } from "@/api/api";
 
 export default function ReceptionDashboard() {
     const { user } = useAuth();
     if (!user || user.role !== "receptionist") return <Navigate to="/login" />;
+    const [todaysAppointments, setTodaysAppointments] = useState(0);
+    const [pendingCheckins, setPendingCheckins] = useState(0);
+    const [totalCustomers, setTotalCustomers] = useState(0);
+    const [invoicesToday, setInvoicesToday] = useState(0);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    // Sample data for counts
-    const todaysAppointments = 8;
-    const pendingCheckins = 3;
-    const totalCustomers = 156;
-    const invoicesToday = 5;
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                const resp = await apiGet('/appointments');
+                const data = resp?.data ?? resp ?? [];
+                if (!mounted) return;
+                const appts: any[] = Array.isArray(data) ? data : [];
+                const todayStr = new Date().toISOString().split('T')[0];
+                setTodaysAppointments(appts.filter(a => (a.appointmentDate || a.date || '').split('T')[0] === todayStr).length);
+                setPendingCheckins(appts.filter(a => (a.status || '').toLowerCase() === 'scheduled' || (a.status || '').toLowerCase() === 'pending').length);
+                setTotalCustomers(new Set(appts.map(a => a.customerId || a.customer)).size);
+                // invoices are out of scope here; keep 0 or derive if available
+                setInvoicesToday(0);
+            } catch (e: any) {
+                console.error('Failed to load appointment counts', e);
+                if (!mounted) return;
+                setError(e?.message || 'Failed to load counts');
+            } finally {
+                if (mounted) setLoading(false);
+            }
+        })();
+        return () => { mounted = false; };
+    }, []);
 
     return (
         <div className="min-h-screen bg-background">

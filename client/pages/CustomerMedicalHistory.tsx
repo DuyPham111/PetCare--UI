@@ -13,15 +13,41 @@ import {
 } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMedicalRecords } from "@/contexts/MedicalRecordsContext";
-import { Navigate } from "react-router-dom";
+import { apiGet } from "@/api/api";
+import { useEffect } from "react";
 import { useState } from "react";
+import { Navigate } from "react-router-dom";
 import { Eye, Calendar, Stethoscope, FileText } from "lucide-react";
 import { MedicalRecord } from "@shared/types";
 
 export default function CustomerMedicalHistory() {
     const { user } = useAuth();
     const { records, getRecordsByCustomerId } = useMedicalRecords();
+    const [appointments, setAppointments] = useState<any[]>([]);
+    const [loadingAppointments, setLoadingAppointments] = useState(false);
+    const [appointmentsError, setAppointmentsError] = useState<string | null>(null);
     const [viewRecordId, setViewRecordId] = useState<string | null>(null);
+
+    useEffect(() => {
+        // Fetch appointment history for the logged-in customer
+        // Backend: user.route.js exposes GET /appointments for authenticated user
+        // Mounted at /api/me/appointments by frontend router (see existing usage elsewhere)
+        (async () => {
+            setLoadingAppointments(true);
+            setAppointmentsError(null);
+            try {
+                const resp = await apiGet('/me/appointments');
+                // Controller returns { data: appointments }
+                const list = resp?.data ?? resp ?? [];
+                setAppointments(list);
+            } catch (err: any) {
+                console.error('Failed to load appointments:', err);
+                setAppointmentsError(err?.message || 'Failed to load appointments');
+            } finally {
+                setLoadingAppointments(false);
+            }
+        })();
+    }, []);
 
     if (!user || user.role !== "customer") {
         return <Navigate to="/login" />;
@@ -42,6 +68,27 @@ export default function CustomerMedicalHistory() {
         });
     };
 
+    const extractDateFromAppointment = (a: any) => {
+        if (!a) return "-";
+        if (a.appointment_time) return formatDate(a.appointment_time);
+        if (a.appointmentDate) return a.appointmentDate;
+        return "-";
+    };
+
+    const extractTimeFromAppointment = (a: any) => {
+        if (!a) return "-";
+        if (a.appointment_time) {
+            try {
+                const d = new Date(a.appointment_time);
+                return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+            } catch {
+                return "-";
+            }
+        }
+        if (a.appointmentTime) return a.appointmentTime;
+        return "-";
+    };
+
     return (
         <div className="min-h-screen bg-background">
             <main className="container mx-auto px-4 py-8">
@@ -53,6 +100,56 @@ export default function CustomerMedicalHistory() {
                 </div>
 
                 {/* Medical Records Table */}
+                {/* Appointment History (read-only) */}
+                <Card className="mb-6">
+                    <CardHeader>
+                        <CardTitle>
+                            <Calendar className="inline h-5 w-5 mr-2" />
+                            Appointment History
+                        </CardTitle>
+                        <CardDescription>
+                            Past appointments for your account
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {loadingAppointments ? (
+                            <div className="text-center py-8">Loading appointments...</div>
+                        ) : appointmentsError ? (
+                            <div className="text-center py-8 text-destructive">{appointmentsError}</div>
+                        ) : appointments.length === 0 ? (
+                            <div className="text-center py-8">
+                                <p className="text-muted-foreground">No appointment history found.</p>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Date</TableHead>
+                                            <TableHead>Time</TableHead>
+                                            <TableHead>Service</TableHead>
+                                            <TableHead>Veterinarian</TableHead>
+                                            <TableHead>Status</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {appointments.map((apt: any) => (
+                                            <TableRow key={apt.id}>
+                                                <TableCell>{extractDateFromAppointment(apt)}</TableCell>
+                                                <TableCell>{extractTimeFromAppointment(apt)}</TableCell>
+                                                <TableCell>{apt.service_type ?? apt.serviceType ?? '-'}</TableCell>
+                                                <TableCell>{apt.doctorName ?? apt.veterinarianName ?? apt.doctor_id ?? '-'}</TableCell>
+                                                <TableCell>
+                                                    <Badge>{apt.status ?? apt.state ?? 'unknown'}</Badge>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
                 <Card>
                     <CardHeader>
                         <CardTitle>

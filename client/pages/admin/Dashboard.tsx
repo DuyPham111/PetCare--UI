@@ -1,66 +1,85 @@
 import AdminLayout from "@/components/AdminLayout";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
-import { useAppointments, useMedications, useInvoices, usePets, useBranches } from "@/hooks/useHospitalData";
-import { Calendar, AlertTriangle, DollarSign, Users, Pill, TrendingUp } from "lucide-react";
+import { Calendar, DollarSign, Users, TrendingUp } from "lucide-react";
 import { Navigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { apiGet } from "@/api/api";
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { appointments } = useAppointments();
-  const { medications } = useMedications();
-  const { invoices } = useInvoices();
-  const { pets } = usePets();
-  const { branches } = useBranches();
-  // Default to admin's branch
-  const [selectedBranch, setSelectedBranch] = useState(user?.branchId || "all");
+  const [appointments, setAppointments] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Redirect if not authenticated
   if (!user) {
     return <Navigate to="/login" />;
   }
 
-  // Filter data by branch
-  const filteredAppointments =
-    selectedBranch === "all"
-      ? appointments
-      : appointments.filter((a) => a.branchId === selectedBranch);
+  // Fetch appointments and invoices on mount
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        // TODO: confirm backend endpoints and response envelopes. We expect
+        // GET /api/appointments -> array or { data: [] }
+        // GET /api/invoices -> array or { data: [] }
+        const [apptsResp, invResp] = await Promise.all([apiGet('/appointments'), apiGet('/invoices')]);
+        const appts = apptsResp?.data ?? apptsResp ?? [];
+        const invs = invResp?.data ?? invResp ?? [];
+        if (!mounted) return;
+        setAppointments(Array.isArray(appts) ? appts : []);
+        setInvoices(Array.isArray(invs) ? invs : []);
+      } catch (e: any) {
+        console.error('Failed to load admin data', e);
+        if (!mounted) return;
+        setError(e?.message || 'Failed to load data');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
-  const filteredMedications =
-    selectedBranch === "all"
-      ? medications
-      : medications.filter((m) => m.branchId === selectedBranch);
-
-  const filteredInvoices =
-    selectedBranch === "all"
-      ? invoices
-      : invoices.filter((i) => i.branchId === selectedBranch);
-
-  // Calculate metrics
-  const todayAppointments = filteredAppointments.filter((apt) => {
-    const aptDate = new Date(apt.appointmentDate).toDateString();
-    const today = new Date().toDateString();
-    return aptDate === today;
-  });
-
-  const pendingInvoices = filteredInvoices.filter((inv) => inv.status === "pending");
-  const totalRevenue = filteredInvoices
-    .filter((inv) => inv.status === "paid")
-    .reduce((sum, inv) => sum + inv.total, 0);
-
-  const expiredMedications = filteredMedications.filter((med) => {
-    const expiryDate = new Date(med.expiryDate);
-    return expiryDate < new Date();
-  });
-
-  const lowStockMedications = filteredMedications.filter((med) => med.quantity <= med.reorderLevel);
-
-  const appointmentStatus = {
-    pending: filteredAppointments.filter((a) => a.status === "pending").length,
-    checkedIn: filteredAppointments.filter((a) => a.status === "checked-in").length,
-    completed: filteredAppointments.filter((a) => a.status === "completed").length,
+  // Helper to normalize appointment date (accept appointmentDate or date or createdAt)
+  const getAptDate = (a: any) => {
+    return a.appointmentDate || a.date || a.createdAt || null;
   };
+
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const totalAppointments = appointments.length;
+  const totalInvoices = invoices.length;
+  // Sum paid invoices (status check tolerant to casing)
+  const totalRevenue = invoices
+    .filter((inv: any) => String(inv.status || '').toLowerCase() === 'paid')
+    .reduce((sum: number, inv: any) => sum + (Number(inv.total) || 0), 0);
+
+  const todayAppointments = appointments.filter((a) => {
+    const d = getAptDate(a);
+    if (!d) return false;
+    return d.split('T')[0] === todayStr;
+  }).length;
+
+  // Simple per-day appointments for last 7 days
+  const perDayAppointments = (() => {
+    const days = Array.from({ length: 7 }).map((_, i) => {
+      const dt = new Date();
+      dt.setDate(dt.getDate() - (6 - i));
+      return dt.toISOString().split('T')[0];
+    });
+    const counts: Record<string, number> = {};
+    days.forEach(d => counts[d] = 0);
+    appointments.forEach(a => {
+      const d = (getAptDate(a) || '').split('T')[0];
+      if (counts[d] !== undefined) counts[d]++;
+    });
+    return days.map(d => ({ date: d, count: counts[d] || 0 }));
+  })();
 
   return (
     <AdminLayout>
@@ -73,56 +92,9 @@ export default function Dashboard() {
           </p>
         </div>
 
-        {/* Branch Filter */}
-        <Card className="p-4 mb-6 border border-border">
-          <div className="flex flex-wrap gap-4 items-center">
-            <div>
-              <label className="text-sm font-medium text-foreground block mb-2">
-                Filter by Branch
-              </label>
-              <select
-                value={selectedBranch}
-                onChange={(e) => setSelectedBranch(e.target.value)}
-                className="px-4 py-2 border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="all">All Branches</option>
-                {branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </Card>
+        {/* Branch filter removed — dashboard shows global stats by default */}
 
-        {/* Critical Alerts */}
-        {(expiredMedications.length > 0 || lowStockMedications.length > 0) && (
-          <div className="mb-8 space-y-3">
-            {expiredMedications.length > 0 && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="font-semibold text-red-900">
-                    {expiredMedications.length} medication(s) expired
-                  </p>
-                  <p className="text-sm text-red-700">Please remove these from inventory</p>
-                </div>
-              </div>
-            )}
-            {lowStockMedications.length > 0 && (
-              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="font-semibold text-yellow-900">
-                    {lowStockMedications.length} medication(s) low in stock
-                  </p>
-                  <p className="text-sm text-yellow-700">Consider reordering soon</p>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+        {/* Inventory alerts removed (not available in this refactor) */}
 
         {/* Key Metrics */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -130,7 +102,7 @@ export default function Dashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm text-muted-foreground font-medium">Today's Appointments</p>
-                <p className="text-3xl font-bold text-foreground mt-2">{todayAppointments.length}</p>
+                <p className="text-3xl font-bold text-foreground mt-2">{loading ? '—' : todayAppointments}</p>
               </div>
               <Calendar className="w-12 h-12 text-primary/20" />
             </div>
@@ -139,8 +111,8 @@ export default function Dashboard() {
           <Card className="p-6 border border-border">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm text-muted-foreground font-medium">Total Pets</p>
-                <p className="text-3xl font-bold text-foreground mt-2">{pets.length}</p>
+                <p className="text-sm text-muted-foreground font-medium">Total Appointments</p>
+                <p className="text-3xl font-bold text-foreground mt-2">{loading ? '—' : totalAppointments}</p>
               </div>
               <Users className="w-12 h-12 text-secondary/20" />
             </div>
@@ -149,8 +121,8 @@ export default function Dashboard() {
           <Card className="p-6 border border-border">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm text-muted-foreground font-medium">Pending Invoices</p>
-                <p className="text-3xl font-bold text-foreground mt-2">${pendingInvoices.reduce((sum, inv) => sum + inv.total, 0).toFixed(2)}</p>
+                <p className="text-sm text-muted-foreground font-medium">Total Invoices</p>
+                <p className="text-3xl font-bold text-foreground mt-2">{loading ? '—' : totalInvoices}</p>
               </div>
               <DollarSign className="w-12 h-12 text-destructive/20" />
             </div>
@@ -160,67 +132,36 @@ export default function Dashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm text-muted-foreground font-medium">Total Revenue</p>
-                <p className="text-3xl font-bold text-foreground mt-2">${totalRevenue.toFixed(2)}</p>
+                <p className="text-3xl font-bold text-foreground mt-2">{loading ? '—' : `$${totalRevenue.toFixed(2)}`}</p>
               </div>
               <TrendingUp className="w-12 h-12 text-green-500/20" />
             </div>
           </Card>
         </div>
 
-        {/* Appointment Status Overview */}
-        <div className="grid lg:grid-cols-2 gap-8 mb-8">
+        {/* Small per-day appointments chart (last 7 days) */}
+        <div className="mb-8">
           <Card className="p-6 border border-border">
-            <h2 className="text-xl font-bold text-foreground mb-6">Appointment Overview</h2>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 bg-yellow-500 rounded-full" />
-                  <span className="text-foreground">Pending</span>
-                </div>
-                <span className="text-2xl font-bold text-foreground">{appointmentStatus.pending}</span>
+            <h2 className="text-xl font-bold text-foreground mb-4">Appointments (last 7 days)</h2>
+            {loading ? (
+              <div className="text-center py-8">Loading chart...</div>
+            ) : error ? (
+              <div className="text-destructive py-4">{error}</div>
+            ) : (
+              <div className="flex items-end gap-2 h-32">
+                {perDayAppointments.map((d) => {
+                  const max = Math.max(...perDayAppointments.map(p => p.count), 1);
+                  const height = Math.round((d.count / max) * 100);
+                  return (
+                    <div key={d.date} className="flex-1 text-center">
+                      <div className="mx-auto bg-primary/60 rounded-b" style={{ height: `${height}%`, width: '100%' }} />
+                      <div className="text-xs mt-2">{new Date(d.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div>
+                      <div className="text-xs text-muted-foreground">{d.count}</div>
+                    </div>
+                  );
+                })}
               </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 bg-blue-500 rounded-full" />
-                  <span className="text-foreground">Checked-In</span>
-                </div>
-                <span className="text-2xl font-bold text-foreground">{appointmentStatus.checkedIn}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 bg-green-500 rounded-full" />
-                  <span className="text-foreground">Completed</span>
-                </div>
-                <span className="text-2xl font-bold text-foreground">{appointmentStatus.completed}</span>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="p-6 border border-border">
-            <h2 className="text-xl font-bold text-foreground mb-6">Medication Status</h2>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 bg-green-500 rounded-full" />
-                  <span className="text-foreground">Total Medications</span>
-                </div>
-                <span className="text-2xl font-bold text-foreground">{medications.length}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 bg-yellow-500 rounded-full" />
-                  <span className="text-foreground">Low Stock</span>
-                </div>
-                <span className="text-2xl font-bold text-foreground">{lowStockMedications.length}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 bg-red-500 rounded-full" />
-                  <span className="text-foreground">Expired</span>
-                </div>
-                <span className="text-2xl font-bold text-foreground">{expiredMedications.length}</span>
-              </div>
-            </div>
+            )}
           </Card>
         </div>
 

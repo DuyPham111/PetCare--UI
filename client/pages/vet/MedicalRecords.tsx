@@ -5,62 +5,110 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMedicalRecords } from "@/contexts/MedicalRecordsContext";
 import { Navigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { apiGet, apiPost } from "@/api/api";
 import { MedicalRecord, PrescriptionItem } from "@shared/types";
 import { Plus, Trash2 } from "lucide-react";
 
 export default function MedicalRecords() {
     const { user } = useAuth();
-    const { records, updateRecord, deleteRecord, getRecordsByVeterinarianId } = useMedicalRecords();
-    const [editingId, setEditingId] = useState<string | null>(null);
+    const { records, getRecordsByVeterinarianId } = useMedicalRecords();
+    const [pets, setPets] = useState<any[]>([]);
+    const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
+    const [fetchedRecords, setFetchedRecords] = useState<MedicalRecord[]>([]);
+    const [loadingRecords, setLoadingRecords] = useState(false);
+    const [recordsError, setRecordsError] = useState<string | null>(null);
+
+    // Form to create new exam record
+    const [creating, setCreating] = useState(false);
     const [formData, setFormData] = useState<Partial<MedicalRecord>>({});
     const [prescriptionItems, setPrescriptionItems] = useState<PrescriptionItem[]>([]);
     const { toast } = useToast();
 
     if (!user || user.role !== 'veterinarian') return <Navigate to="/login" />;
 
-    // Filter records for current veterinarian
+    // Filter records for current veterinarian (local cache)
     const vetRecords = user.id ? getRecordsByVeterinarianId(user.id) : records;
 
-    const handleEdit = (record: MedicalRecord) => {
-        setEditingId(record.id);
-        setFormData({ ...record });
-        setPrescriptionItems(record.prescription || []);
-    };
+    // Load assigned pets for vet to select when creating/viewing records
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            try {
+                // TODO: confirm endpoint /api/vets/assigned-pets returns owner info as needed
+                const resp = await apiGet('/vets/assigned-pets');
+                const data = resp?.data ?? resp ?? [];
+                if (!mounted) return;
+                setPets(data as any[]);
+            } catch (err) {
+                console.error('Failed to load assigned pets', err);
+            }
+        })();
+        return () => { mounted = false; };
+    }, []);
 
-    const handleSave = () => {
-        if (!formData || !editingId) return;
+    // Fetch medical records when a pet is selected
+    useEffect(() => {
+        if (!selectedPetId) return;
+        let mounted = true;
+        (async () => {
+            setLoadingRecords(true);
+            setRecordsError(null);
+            try {
+                // Expected backend endpoint: GET /api/pets/:petId/medical-records
+                const resp = await apiGet(`/pets/${selectedPetId}/medical-records`);
+                const data = resp?.data ?? resp ?? [];
+                if (!mounted) return;
+                setFetchedRecords(data as MedicalRecord[]);
+            } catch (err: any) {
+                console.error('Failed to load medical records', err);
+                if (!mounted) return;
+                setRecordsError(err?.message || 'Failed to load records');
+            } finally {
+                if (mounted) setLoadingRecords(false);
+            }
+        })();
+        return () => { mounted = false; };
+    }, [selectedPetId]);
 
-        updateRecord(editingId, {
-            ...formData,
-            prescription: prescriptionItems,
-        });
+    const handleCreateRecord = async () => {
+        if (!selectedPetId) {
+            toast({ title: 'Error', description: 'Please select a pet before creating a record', variant: 'destructive' });
+            return;
+        }
+        setCreating(true);
+        try {
+            const payload: any = {
+                pet_id: selectedPetId,
+                diagnosis: formData.diagnosis,
+                conclusion: formData.conclusion,
+                appointment_date: formData.createdAt || new Date().toISOString(),
+                weight: (formData as any).weight,
+                temperature: (formData as any).temperature,
+                blood_pressure: (formData as any).bloodPressure,
+                symptoms: formData.symptoms,
+                prescription: prescriptionItems,
+            };
 
-        setEditingId(null);
-        setFormData({});
-        setPrescriptionItems([]);
-        toast({ title: 'Record Updated', description: 'Medical record has been updated successfully.' });
-    };
-
-    const handleCancel = () => {
-        setEditingId(null);
-        setFormData({});
-        setPrescriptionItems([]);
-    };
-
-    const handleDelete = (id: string) => {
-        if (confirm("Are you sure you want to delete this medical record?")) {
-            deleteRecord(id);
-            if (editingId === id) {
-                setEditingId(null);
+            // TODO: confirm backend expects snake_case keys as above and returns created object in data
+            const resp = await apiPost('/doctor/exam-records', payload);
+            const created = resp?.data ?? resp;
+            if (created) {
+                setFetchedRecords((prev) => [created as MedicalRecord, ...prev]);
+                toast({ title: 'Success', description: 'Medical examination record created' });
                 setFormData({});
                 setPrescriptionItems([]);
             }
-            toast({ title: 'Record Deleted', description: 'Medical record has been deleted.' });
+        } catch (err: any) {
+            console.error('Failed to create exam record', err);
+            toast({ title: 'Error', description: err?.message || 'Failed to create record', variant: 'destructive' });
+        } finally {
+            setCreating(false);
         }
     };
 
@@ -102,174 +150,95 @@ export default function MedicalRecords() {
                     {/* Records Table */}
                     <Card className="lg:col-span-2">
                         <CardHeader>
-                            <CardTitle>All Records ({vetRecords.length})</CardTitle>
-                            <CardDescription>Complete list of medical records</CardDescription>
+                            <CardTitle>Medical Records</CardTitle>
+                            <CardDescription>Select a pet to view records</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <div className="overflow-x-auto">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Pet Name</TableHead>
-                                            <TableHead>Customer</TableHead>
-                                            <TableHead>Date</TableHead>
-                                            <TableHead>Diagnosis</TableHead>
-                                            <TableHead className="text-right">Actions</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {vetRecords.length === 0 ? (
+                            <div className="mb-4">
+                                <Label>Pet</Label>
+                                <select
+                                    className="w-full border rounded p-2"
+                                    value={selectedPetId || ''}
+                                    onChange={(e) => setSelectedPetId(e.target.value || null)}
+                                >
+                                    <option value="">-- Select a pet --</option>
+                                    {pets.map((p) => (
+                                        <option key={p.id} value={p.id}>{p.name} ({p.type})</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {loadingRecords ? (
+                                <div className="text-center py-8">Loading records...</div>
+                            ) : recordsError ? (
+                                <div className="text-center py-8 text-destructive">{recordsError}</div>
+                            ) : fetchedRecords.length === 0 ? (
+                                <div className="text-center py-8 text-muted-foreground">No medical records found for this pet</div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <Table>
+                                        <TableHeader>
                                             <TableRow>
-                                                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                                                    No medical records found
-                                                </TableCell>
+                                                <TableHead>Date</TableHead>
+                                                <TableHead>Diagnosis</TableHead>
+                                                <TableHead>Veterinarian</TableHead>
+                                                <TableHead>Follow-up</TableHead>
+                                                <TableHead className="text-right">Actions</TableHead>
                                             </TableRow>
-                                        ) : (
-                                            vetRecords.map((record) => (
+                                        </TableHeader>
+                                        <TableBody>
+                                            {fetchedRecords.map((record) => (
                                                 <TableRow key={record.id}>
-                                                    <TableCell className="font-medium">{record.petName}</TableCell>
-                                                    <TableCell>{record.customerName}</TableCell>
                                                     <TableCell>{formatDate(record.createdAt)}</TableCell>
                                                     <TableCell className="max-w-xs truncate">{record.diagnosis}</TableCell>
+                                                    <TableCell>{record.veterinarianName || record.veterinarianId || 'Unknown'}</TableCell>
+                                                    <TableCell>
+                                                        {record.followUpDate ? (
+                                                            <Badge variant="outline">{formatDate(record.followUpDate)}</Badge>
+                                                        ) : (
+                                                            <span className="text-muted-foreground">N/A</span>
+                                                        )}
+                                                    </TableCell>
                                                     <TableCell className="text-right">
                                                         <div className="flex justify-end gap-2">
-                                                            <Button size="sm" variant="outline" onClick={() => handleEdit(record)}>
-                                                                Edit
-                                                            </Button>
-                                                            <Button size="sm" variant="destructive" onClick={() => handleDelete(record.id)}>
-                                                                Delete
+                                                            <Button size="sm" variant="outline" onClick={() => { window.alert('View details in drawer (not implemented)'); }}>
+                                                                View
                                                             </Button>
                                                         </div>
                                                     </TableCell>
                                                 </TableRow>
-                                            ))
-                                        )}
-                                    </TableBody>
-                                </Table>
-                            </div>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 
                     {/* Edit Panel */}
                     <Card>
                         <CardHeader>
-                            <CardTitle>Record Editor</CardTitle>
-                            <CardDescription>{editingId ? 'Edit selected record' : 'Select a record to edit'}</CardDescription>
+                            <CardTitle>Create Medical Exam Record</CardTitle>
+                            <CardDescription>Fill form to create a new medical examination record for the selected pet</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            {editingId && formData ? (
-                                <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
-                                    <div>
-                                        <Label htmlFor="petName">Pet Name</Label>
-                                        <Input
-                                            id="petName"
-                                            value={formData.petName || ""}
-                                            onChange={(e) => setFormData({ ...formData, petName: e.target.value })}
-                                        />
-                                    </div>
-                                    <div>
-                                        <Label htmlFor="customerName">Customer Name</Label>
-                                        <Input
-                                            id="customerName"
-                                            value={formData.customerName || ""}
-                                            onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                                        />
-                                    </div>
-                                    <div>
-                                        <Label htmlFor="symptoms">Symptoms</Label>
-                                        <Textarea
-                                            id="symptoms"
-                                            value={formData.symptoms || ""}
-                                            onChange={(e) => setFormData({ ...formData, symptoms: e.target.value })}
-                                            rows={3}
-                                        />
-                                    </div>
-                                    <div>
-                                        <Label htmlFor="diagnosis">Diagnosis</Label>
-                                        <Textarea
-                                            id="diagnosis"
-                                            value={formData.diagnosis || ""}
-                                            onChange={(e) => setFormData({ ...formData, diagnosis: e.target.value })}
-                                            rows={2}
-                                        />
-                                    </div>
-                                    <div>
-                                        <Label htmlFor="conclusion">Conclusion</Label>
-                                        <Textarea
-                                            id="conclusion"
-                                            value={formData.conclusion || ""}
-                                            onChange={(e) => setFormData({ ...formData, conclusion: e.target.value })}
-                                            rows={3}
-                                        />
-                                    </div>
-                                    <div>
-                                        <Label htmlFor="followUpDate">Follow-up Date</Label>
-                                        <Input
-                                            id="followUpDate"
-                                            type="date"
-                                            value={formData.followUpDate || ""}
-                                            onChange={(e) => setFormData({ ...formData, followUpDate: e.target.value })}
-                                        />
-                                    </div>
-
-                                    {/* Prescription Items */}
-                                    <div>
-                                        <div className="flex items-center justify-between mb-2">
-                                            <Label>Prescription</Label>
-                                            <Button size="sm" variant="outline" onClick={handleAddPrescription}>
-                                                <Plus className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                        <div className="space-y-2">
-                                            {prescriptionItems.map((item, index) => (
-                                                <div key={index} className="p-2 border rounded-lg space-y-2">
-                                                    <Input
-                                                        placeholder="Drug name"
-                                                        value={item.drugName}
-                                                        onChange={(e) =>
-                                                            handlePrescriptionChange(index, "drugName", e.target.value)
-                                                        }
-                                                    />
-                                                    <Input
-                                                        type="number"
-                                                        placeholder="Quantity"
-                                                        value={item.quantity}
-                                                        onChange={(e) =>
-                                                            handlePrescriptionChange(
-                                                                index,
-                                                                "quantity",
-                                                                parseInt(e.target.value)
-                                                            )
-                                                        }
-                                                    />
-                                                    <Input
-                                                        placeholder="Dosage (e.g., 250mg)"
-                                                        value={item.dosage || ""}
-                                                        onChange={(e) =>
-                                                            handlePrescriptionChange(index, "dosage", e.target.value)
-                                                        }
-                                                    />
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        onClick={() => handleRemovePrescription(index)}
-                                                        className="w-full"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div className="flex gap-2 pt-4">
-                                        <Button onClick={handleSave}>Save Changes</Button>
-                                        <Button variant="outline" onClick={handleCancel}>Cancel</Button>
-                                    </div>
+                            <div className="space-y-4">
+                                <div>
+                                    <Label>Diagnosis</Label>
+                                    <Textarea value={formData.diagnosis || ''} onChange={(e) => setFormData({ ...formData, diagnosis: e.target.value })} rows={2} />
                                 </div>
-                            ) : (
-                                <p className="text-muted-foreground text-sm">Click Edit on a record to modify its details</p>
-                            )}
+                                <div>
+                                    <Label>Conclusion</Label>
+                                    <Textarea value={formData.conclusion || ''} onChange={(e) => setFormData({ ...formData, conclusion: e.target.value })} rows={2} />
+                                </div>
+                                <div>
+                                    <Label>Symptoms</Label>
+                                    <Textarea value={formData.symptoms || ''} onChange={(e) => setFormData({ ...formData, symptoms: e.target.value })} rows={2} />
+                                </div>
+                                <div className="flex gap-2">
+                                    <Button onClick={handleCreateRecord} disabled={creating}>{creating ? 'Creating...' : 'Create Record'}</Button>
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
                 </div>

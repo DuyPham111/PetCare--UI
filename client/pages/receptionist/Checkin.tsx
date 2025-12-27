@@ -3,21 +3,48 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import CustomerCheckinTable from "@/components/receptionist/CustomerCheckinTable";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
-import { useState } from "react";
-
-const sampleToday = [
-    { id: 'apt-1', time: '09:00', pet: 'Bella', owner: 'John Doe', status: 'Scheduled' },
-    { id: 'apt-2', time: '10:30', pet: 'Max', owner: 'Mary Smith', status: 'Scheduled' },
-];
+import { useState, useEffect } from "react";
+import { apiGet, apiPut } from "@/api/api";
 
 export default function Checkin() {
     const { user } = useAuth();
     if (!user || user.role !== 'receptionist') return <Navigate to="/login" />;
 
-    const [list, setList] = useState(sampleToday);
+    const [appointments, setAppointments] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    const markChecked = (id: string) => {
-        setList(list.map(item => item.id === id ? { ...item, status: 'Checked In' } : item));
+    // Load appointments
+    useEffect(() => {
+        let mounted = true;
+        (async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                // TODO: consider filtering by branchId/date on server side
+                const resp = await apiGet('/appointments');
+                const data = resp?.data ?? resp ?? [];
+                if (!mounted) return;
+                setAppointments(Array.isArray(data) ? data : []);
+            } catch (e: any) {
+                console.error('Failed to load appointments', e);
+                if (!mounted) return;
+                setError(e?.message || 'Failed to load appointments');
+            } finally {
+                if (mounted) setLoading(false);
+            }
+        })();
+        return () => { mounted = false; };
+    }, []);
+
+    const updateStatus = async (id: string, status: string) => {
+        try {
+            const resp = await apiPut(`/appointments/${id}`, { status });
+            const updated = resp?.data ?? resp;
+            setAppointments((prev) => prev.map(a => (a.id === id ? (updated || { ...a, status }) : a)));
+        } catch (e) {
+            console.error('Failed to update appointment', e);
+        }
     };
 
     return (
@@ -33,7 +60,7 @@ export default function Checkin() {
                         <CardDescription>View and process today's appointments</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <CustomerCheckinTable />
+                        <CustomerCheckinTable appointments={appointments} onUpdateStatus={updateStatus} />
                     </CardContent>
                 </Card>
             </div>

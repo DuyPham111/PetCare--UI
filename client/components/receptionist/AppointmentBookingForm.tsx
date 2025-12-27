@@ -1,5 +1,6 @@
 import React from "react";
 import sampleReceptionData from "@/data/sampleReceptionData";
+import { apiPost } from "@/api/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -7,12 +8,12 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function AppointmentBookingForm() {
     const { toast } = useToast();
-
     const customers = sampleReceptionData.sampleReceptionCustomers || [];
     const pets = sampleReceptionData.sampleReceptionPets || [];
     const vets = sampleReceptionData.sampleReceptionVets || [];
     const services = sampleReceptionData.sampleReceptionServices || [];
     const branches = sampleReceptionData.sampleReceptionBranches || [];
+    const [isSaving, setIsSaving] = React.useState(false);
 
     const [customerId, setCustomerId] = React.useState(customers[0]?.id ?? "");
     const [petId, setPetId] = React.useState(pets[0]?.id ?? "");
@@ -22,27 +23,42 @@ export default function AppointmentBookingForm() {
     const [date, setDate] = React.useState(new Date().toISOString().split("T")[0]);
     const [time, setTime] = React.useState("09:00");
 
-    function saveAppointment() {
-        const newApt = {
-            id: `apt-${Date.now()}`,
-            customerId,
-            petId,
-            vetId,
-            serviceId,
-            branch,
-            date,
-            time,
-            status: "Scheduled",
-        };
-
+    async function saveAppointment() {
+        setIsSaving(true);
         try {
-            const existing = JSON.parse(localStorage.getItem("petcare_appointments") || "[]");
-            existing.unshift(newApt);
-            localStorage.setItem("petcare_appointments", JSON.stringify(existing));
-            toast({ title: "Appointment created", description: "Saved to local data for demo." });
-        } catch (e) {
-            console.error(e);
-            toast({ title: "Error", description: "Failed to save appointment." });
+            // TODO: confirm backend expects these camelCase keys and separate date/time fields
+            const payload = {
+                customerId,
+                petId,
+                veterinarianId: vetId || undefined,
+                serviceId,
+                branchId: branch,
+                appointmentDate: date,
+                appointmentTime: time,
+                status: "scheduled",
+            };
+
+            const resp = await apiPost('/appointments', payload);
+            // Accept either { data: ... } or direct object
+            const created = resp?.data ?? resp;
+            if (created) {
+                toast({ title: "Appointment created", description: "Appointment saved." });
+                // attempt to clear form
+                setCustomerId(customers[0]?.id ?? "");
+                setPetId(pets[0]?.id ?? "");
+                setVetId(vets[0]?.id ?? "");
+                setServiceId(services[0]?.id ?? "");
+                setBranch(branches[0] ?? "");
+                setDate(new Date().toISOString().split("T")[0]);
+                setTime("09:00");
+            } else {
+                toast({ title: "Error", description: "Unexpected response from server", variant: 'destructive' });
+            }
+        } catch (e: any) {
+            console.error('Failed to create appointment', e);
+            toast({ title: 'Error', description: e?.message || 'Failed to create appointment', variant: 'destructive' });
+        } finally {
+            setIsSaving(false);
         }
     }
 
@@ -131,7 +147,9 @@ export default function AppointmentBookingForm() {
             </div>
 
             <div className="flex items-center justify-end">
-                <Button onClick={saveAppointment} className="bg-primary text-white">Create Appointment</Button>
+                <Button onClick={saveAppointment} className="bg-primary text-white" disabled={isSaving}>
+                    {isSaving ? 'Creating...' : 'Create Appointment'}
+                </Button>
             </div>
         </div>
     );

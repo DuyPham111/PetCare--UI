@@ -12,6 +12,7 @@ import { useState, useEffect } from "react";
 import { mockPetItems } from "@/lib/mockData";
 import { Trash2, Search, ShoppingCart, AlertTriangle, PackageX } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiPost } from "@/api/api";
 import {
     getProductStock,
     validateProductStock,
@@ -41,8 +42,10 @@ export default function SalesPage() {
     const [cart, setCart] = useState<CartItem[]>([]);
     const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "transfer">("cash");
     const [stockLevels, setStockLevels] = useState<Record<string, number>>({});
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-    if (!user || user.role !== "sales") return <Navigate to="/login" />;
+    // Do not redirect while a sale is submitting — allow in-flight requests to finish
+    if ((!user || user.role !== "sales") && !isSubmitting) return <Navigate to="/login" />;
 
     // Load real-time stock levels
     useEffect(() => {
@@ -188,111 +191,45 @@ export default function SalesPage() {
             }
         }
 
-        // Deduct stock for all items (transactional safety)
-        const deductedItems: Array<{ productId: string; quantity: number }> = [];
-        try {
-            for (const item of cart) {
-                const success = deductProductStock(branchId, item.id, item.quantity);
-                if (!success) {
-                    // Rollback previous deductions
-                    for (const deducted of deductedItems) {
-                        // Restore stock by adding back the quantity
-                        const inventory = JSON.parse(localStorage.getItem("petcare_product_inventory") || "[]");
-                        const index = inventory.findIndex(
-                            (inv: any) => inv.branchId === branchId && inv.productId === deducted.productId
-                        );
-                        if (index !== -1) {
-                            inventory[index].quantity += deducted.quantity;
-                            localStorage.setItem("petcare_product_inventory", JSON.stringify(inventory));
-                        }
-                    }
-                    toast({
-                        title: "Sale Failed",
-                        description: `Failed to deduct stock for ${item.name}. Transaction rolled back.`,
-                        variant: "destructive",
-                    });
-                    return;
-                }
-                deductedItems.push({ productId: item.id, quantity: item.quantity });
+        // Use backend API to create the order. Backend will handle inventory and invoice creation.
+        // Request body: { branch_id, items: [{ product_id, quantity }], payment_method }
+        (async () => {
+            setIsSubmitting(true);
+            try {
+                const payload = {
+                    branch_id: branchId,
+                    items: cart.map(i => ({ product_id: i.id, quantity: i.quantity })),
+                    payment_method: paymentMethod === 'cash' ? 'Tiền mặt' : paymentMethod === 'card' ? 'Thẻ' : 'Chuyển khoản'
+                };
+
+                const result = await apiPost('/orders/buy', payload);
+                // backend returns { data: <invoice_id> } on success
+                const invoiceId = result?.data ?? null;
+
+                toast({
+                    title: 'Sale Completed',
+                    description: invoiceId ? `Invoice created: ${invoiceId}` : 'Order processed successfully.',
+                });
+
+                // Reset UI state
+                setCart([]);
+                setCustomerName("");
+                setCustomerPhone("");
+                setMembershipTier("none");
+                setPaymentMethod("cash");
+
+                // TODO: refresh product inventory from backend (no product/inventory GET endpoint currently)
+            } catch (error: any) {
+                console.error('Error processing sale:', error);
+                toast({
+                    title: 'Error',
+                    description: error?.message || 'Failed to process sale',
+                    variant: 'destructive',
+                });
+            } finally {
+                setIsSubmitting(false);
             }
-
-            // Save invoice to localStorage
-            const invoices = JSON.parse(localStorage.getItem("petcare_product_invoices") || "[]");
-            const newInvoice = {
-                id: `invoice-${Date.now()}`,
-                branchId,
-                customerId: null,
-                customerName,
-                customerPhone,
-                items: cart,
-                subtotal: calculateSubtotal(),
-                discount: calculateDiscount(),
-                vat: calculateVAT(),
-                total: calculateTotal(),
-                paymentMethod,
-                membershipTier,
-                loyaltyPoints: calculateLoyaltyPoints(),
-                createdBy: user.id,
-                createdAt: new Date().toISOString(),
-            };
-            invoices.push(newInvoice);
-            localStorage.setItem("petcare_product_invoices", JSON.stringify(invoices));
-
-            // Find customer by phone and update membership
-            const users: User[] = JSON.parse(localStorage.getItem("petcare_users") || "[]");
-            const customer = users.find(
-                (u) => u.role === "customer" && u.phone === customerPhone
-            );
-
-            if (customer) {
-                // Update customer ID in invoice
-                newInvoice.customerId = customer.id;
-                localStorage.setItem("petcare_product_invoices", JSON.stringify(invoices));
-
-                // Auto-update membership level
-                const membershipResult = updateCustomerMembership(customer.id);
-
-                if (membershipResult.success) {
-                    if (membershipResult.upgraded) {
-                        toast({
-                            title: "🎉 Membership Upgraded!",
-                            description: `Customer upgraded from ${membershipResult.oldLevel} to ${membershipResult.newLevel}!`,
-                        });
-                    } else if (membershipResult.newLevel !== membershipResult.oldLevel) {
-                        toast({
-                            title: "Membership Updated",
-                            description: `Customer membership: ${membershipResult.newLevel}`,
-                        });
-                    }
-                }
-            }
-
-            // Reload stock levels
-            const levels: Record<string, number> = {};
-            mockPetItems.forEach(product => {
-                levels[product.id] = getProductStock(branchId, product.id);
-            });
-            setStockLevels(levels);
-
-            toast({
-                title: "Sale Completed",
-                description: `Order processed successfully. Total: ${calculateTotal().toLocaleString()} VND`,
-            });
-
-            // Reset form
-            setCart([]);
-            setCustomerName("");
-            setCustomerPhone("");
-            setMembershipTier("none");
-            setPaymentMethod("cash");
-        } catch (error) {
-            console.error("Error processing sale:", error);
-            toast({
-                title: "Error",
-                description: "An error occurred while processing the sale.",
-                variant: "destructive",
-            });
-        }
+        })();
     };
 
     return (

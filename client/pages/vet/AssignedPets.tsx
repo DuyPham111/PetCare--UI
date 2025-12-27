@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate, Link } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { apiGet } from "@/api/api";
 import { Syringe, Package, ChevronDown, ChevronUp } from "lucide-react";
 import type { Pet, ServiceInstance, User as UserType } from "@shared/types";
 
@@ -14,21 +15,38 @@ export default function AssignedPets() {
     const [pets, setPets] = useState<Pet[]>([]);
     const [customers, setCustomers] = useState<UserType[]>([]);
     const [serviceInstances, setServiceInstances] = useState<ServiceInstance[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const [expandedPetId, setExpandedPetId] = useState<string | null>(null);
 
     if (!user || user.role !== 'veterinarian') return <Navigate to="/login" />;
 
-    // Load data
+    // Load assigned pets + related data from backend
     useEffect(() => {
-        const loadedPets = JSON.parse(localStorage.getItem("petcare_pets") || "[]");
-        const loadedCustomers = JSON.parse(localStorage.getItem("petcare_users") || "[]").filter(
-            (u: UserType) => u.role === "customer"
-        );
-        const loadedInstances = JSON.parse(localStorage.getItem("petcare_service_instances") || "[]");
+        let mounted = true;
+        (async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                // TODO: Confirm backend endpoint: GET /api/vets/assigned-pets returns array of pets with owner info.
+                const resp = await apiGet('/vets/assigned-pets');
+                // backend may return { data: [...] } or direct array
+                const data = resp?.data ?? resp ?? [];
+                if (!mounted) return;
+                setPets(data as Pet[]);
 
-        setPets(loadedPets);
-        setCustomers(loadedCustomers);
-        setServiceInstances(loadedInstances);
+                // Optionally backend may include owner info; fall back to empty customers/serviceInstances
+                setCustomers([]);
+                setServiceInstances([]);
+            } catch (err: any) {
+                console.error('Failed to load assigned pets', err);
+                if (!mounted) return;
+                setError(err?.message || 'Failed to load assigned pets');
+            } finally {
+                if (mounted) setLoading(false);
+            }
+        })();
+        return () => { mounted = false; };
     }, []);
 
     // Get injection history for a pet
@@ -60,10 +78,12 @@ export default function AssignedPets() {
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-4">
-                            {pets.length === 0 ? (
-                                <div className="text-center py-8 text-muted-foreground">
-                                    No pets assigned yet
-                                </div>
+                            {loading ? (
+                                <div className="text-center py-8">Loading assigned pets...</div>
+                            ) : error ? (
+                                <div className="text-center py-8 text-destructive">{error}</div>
+                            ) : pets.length === 0 ? (
+                                <div className="text-center py-8 text-muted-foreground">No pets assigned yet</div>
                             ) : (
                                 pets.map((pet) => {
                                     const injectionHistory = getPetInjectionHistory(pet.id);

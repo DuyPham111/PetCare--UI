@@ -5,20 +5,38 @@ import { Card } from "@/components/ui/card";
 import { Link } from "react-router-dom";
 import { Order } from "@shared/types";
 import { useEffect, useState } from "react";
+import { apiGet } from "@/api/api";
 import { Package, Calendar, DollarSign, ChevronDown } from "lucide-react";
 
 export default function OrderHistory() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
-    const allOrders = JSON.parse(localStorage.getItem("petcare_orders") || "[]");
-    const customerOrders = allOrders.filter((o: Order) => o.customerId === user.id);
-    setOrders(customerOrders.sort((a: Order, b: Order) => 
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    ));
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        // Fetch orders from backend for authenticated user
+        const resp = await apiGet('/me/orders');
+        const rows = resp?.data || [];
+
+        // TODO: adjust mapping if backend uses different field names
+        const customerOrders = (rows as any[]).map((o) => ({ ...o } as Order));
+        customerOrders.sort((a: Order, b: Order) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setOrders(customerOrders);
+      } catch (err: any) {
+        console.error('Failed to load orders', err);
+        setError(err?.message || 'Failed to load orders');
+        setOrders([]);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [user]);
 
   const formatPrice = (price: number) => {
@@ -138,9 +156,8 @@ export default function OrderHistory() {
 
                     {/* Expand Icon */}
                     <ChevronDown
-                      className={`w-5 h-5 text-muted-foreground transition-transform ml-4 flex-shrink-0 ${
-                        expandedOrder === order.id ? "rotate-180" : ""
-                      }`}
+                      className={`w-5 h-5 text-muted-foreground transition-transform ml-4 flex-shrink-0 ${expandedOrder === order.id ? "rotate-180" : ""
+                        }`}
                     />
                   </button>
 

@@ -23,6 +23,11 @@ export function MedicalRecordsProvider({ children }: { children: ReactNode }) {
 
     // Load records from localStorage on mount
     useEffect(() => {
+        // TODO: replace localStorage with backend API calls when available.
+        // Preferred endpoints (backend):
+        // - GET /api/pets/:petId/medical-records -> returns [{ id, petId, petName, veterinarianName, diagnosis, symptoms, prescription[], followUpDate, createdAt, ... }]
+        // - OR GET /api/me/medical-records -> returns all records for authenticated customer's pets
+        // If these endpoints are implemented, call them here and populate `records`.
         loadRecords();
     }, []);
 

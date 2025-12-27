@@ -15,6 +15,7 @@ import { useState, useEffect } from "react";
 import { Appointment, Pet, User as UserType, Vaccine, VaccinePackage } from "@shared/types";
 import { Eye, Calendar, Clock, Edit, X, AlertCircle, CheckCircle2, Ban } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiGet } from "@/api/api";
 
 export default function CustomerAppointments() {
     const { user } = useAuth();
@@ -48,67 +49,87 @@ export default function CustomerAppointments() {
     }, [user]);
 
     const loadData = () => {
-        try {
-            const allAppointments = JSON.parse(localStorage.getItem("petcare_appointments") || "[]");
-            const customerAppointments = allAppointments.filter(
-                (a: Appointment) => a.customerId === user.id
-            );
+        (async () => {
+            setLoading(true);
+            try {
+                // Fetch appointments for the current authenticated user
+                const json = await apiGet('/me/appointments');
+                const rows: any[] = json?.data || [];
 
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
+                // Normalize backend appointment rows to frontend Appointment shape
+                const normalized = rows.map((r: any) => {
+                    const apptTime = r.appointment_time || r.appointmentTime || r.appointment_time_at || null;
+                    const dateIso = apptTime ? new Date(apptTime).toISOString().split('T')[0] : (r.appointmentDate || r.date || '');
+                    const timeStr = apptTime ? new Date(apptTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (r.appointmentTime || '');
 
-            const upcoming: Appointment[] = [];
-            const past: Appointment[] = [];
+                    return {
+                        id: r.id ? String(r.id) : (r.id || ''),
+                        petId: r.pet_id ? String(r.pet_id) : (r.petId || ''),
+                        customerId: r.owner_id ? String(r.owner_id) : (r.customerId || user.id),
+                        branchId: r.branch_id ? String(r.branch_id) : (r.branchId || ''),
+                        appointmentDate: dateIso,
+                        appointmentTime: timeStr,
+                        serviceType: r.service_type || r.type_of_service || r.serviceType || r.type || '',
+                        veterinarianId: r.doctor_id ? String(r.doctor_id) : (r.veterinarian_id || r.veterinarianId || ''),
+                        reasonForVisit: r.reason || r.reasonForVisit || r.notes || '',
+                        status: r.status || 'pending',
+                        createdAt: r.created_at || r.createdAt || '',
+                    } as Appointment;
+                });
 
-            customerAppointments.forEach((apt: Appointment) => {
-                const aptDate = new Date(apt.appointmentDate);
-                aptDate.setHours(0, 0, 0, 0);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
 
-                if (apt.status === "completed" || apt.status === "cancelled") {
-                    past.push(apt);
-                } else if (aptDate >= today) {
-                    upcoming.push(apt);
-                } else {
-                    past.push(apt);
+                const upcoming: Appointment[] = [];
+                const past: Appointment[] = [];
+
+                normalized.forEach((apt: Appointment) => {
+                    const aptDate = apt.appointmentDate ? new Date(apt.appointmentDate) : null;
+                    if (apt.status === 'completed' || apt.status === 'cancelled') {
+                        past.push(apt);
+                    } else if (aptDate && aptDate >= today) {
+                        upcoming.push(apt);
+                    } else {
+                        past.push(apt);
+                    }
+                });
+
+                upcoming.sort((a, b) => new Date(a.appointmentDate).getTime() - new Date(b.appointmentDate).getTime());
+                past.sort((a, b) => new Date(b.appointmentDate).getTime() - new Date(a.appointmentDate).getTime());
+
+                setUpcomingAppointments(upcoming);
+                setPastAppointments(past);
+
+                // Keep loading pets and vets from local mock storage as before
+                const allPets = JSON.parse(localStorage.getItem("petcare_pets") || "[]");
+                const customerPets = allPets.filter((p: Pet) => p.customerId === user.id);
+                setPets(customerPets);
+
+                const allUsers = JSON.parse(localStorage.getItem("petcare_users") || "[]");
+                let branchVets = allUsers.filter(
+                    (u: UserType) => u.role === "veterinarian" && u.branchId === user.branchId
+                );
+
+                if (branchVets.length === 0 || !user.branchId) {
+                    branchVets = allUsers.filter((u: UserType) => u.role === "veterinarian");
                 }
-            });
 
-            // Sort by date
-            upcoming.sort((a, b) => new Date(a.appointmentDate).getTime() - new Date(b.appointmentDate).getTime());
-            past.sort((a, b) => new Date(b.appointmentDate).getTime() - new Date(a.appointmentDate).getTime());
+                branchVets.sort((a: UserType, b: UserType) => {
+                    const aSpec = a.specialization || "General";
+                    const bSpec = b.specialization || "General";
+                    if (aSpec === "General" && bSpec !== "General") return 1;
+                    if (aSpec !== "General" && bSpec === "General") return -1;
+                    return aSpec.localeCompare(bSpec);
+                });
 
-            setUpcomingAppointments(upcoming);
-            setPastAppointments(past);
-
-            // Load pets
-            const allPets = JSON.parse(localStorage.getItem("petcare_pets") || "[]");
-            const customerPets = allPets.filter((p: Pet) => p.customerId === user.id);
-            setPets(customerPets);
-
-            // Load veterinarians
-            const allUsers = JSON.parse(localStorage.getItem("petcare_users") || "[]");
-            let branchVets = allUsers.filter(
-                (u: UserType) => u.role === "veterinarian" && u.branchId === user.branchId
-            );
-
-            if (branchVets.length === 0 || !user.branchId) {
-                branchVets = allUsers.filter((u: UserType) => u.role === "veterinarian");
+                setVets(branchVets);
+            } catch (error) {
+                console.error("Error loading appointments:", error);
+                toast({ title: 'Error', description: 'Failed to load appointments', variant: 'destructive' });
+            } finally {
+                setLoading(false);
             }
-
-            branchVets.sort((a: UserType, b: UserType) => {
-                const aSpec = a.specialization || "General";
-                const bSpec = b.specialization || "General";
-                if (aSpec === "General" && bSpec !== "General") return 1;
-                if (aSpec !== "General" && bSpec === "General") return -1;
-                return aSpec.localeCompare(bSpec);
-            });
-
-            setVets(branchVets);
-        } catch (error) {
-            console.error("Error loading appointments:", error);
-        } finally {
-            setLoading(false);
-        }
+        })();
     };
 
     const getPetName = (petId: string) => {
