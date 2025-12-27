@@ -26,10 +26,10 @@ export default function CustomerServiceBooking() {
     const [selectedPackage, setSelectedPackage] = useState<VaccinePackage | null>(null);
     const [showPackageDetails, setShowPackageDetails] = useState(false);
 
-    // Medical Exam Form
+    // Medical Exam Form (use `doctorId` and `time` as selected slot HH:mm)
     const [examForm, setExamForm] = useState({
         petId: "",
-        veterinarianId: "",
+        doctorId: "",
         date: "",
         time: "",
         notes: "",
@@ -39,7 +39,7 @@ export default function CustomerServiceBooking() {
     const [singleDoseForm, setSingleDoseForm] = useState({
         petId: "",
         vaccineId: "",
-        veterinarianId: "",
+        doctorId: "",
         date: "",
         time: "",
         notes: "",
@@ -49,11 +49,18 @@ export default function CustomerServiceBooking() {
     const [packageForm, setPackageForm] = useState({
         petId: "",
         packageId: "",
-        veterinarianId: "",
+        doctorId: "",
         date: "",
         time: "",
         notes: "",
     });
+
+    // Busy slots state (computed from existing appointments/localStorage)
+    const [busySlotsByForm, setBusySlotsByForm] = useState<{
+        exam: string[];
+        single: string[];
+        package: string[];
+    }>({ exam: [], single: [], package: [] });
 
     if (!user || user.role !== "customer") {
         return <Navigate to="/login" />;
@@ -62,6 +69,85 @@ export default function CustomerServiceBooking() {
     useEffect(() => {
         loadData();
     }, [user]);
+
+    // ---------- Helpers for time slots & busy slots ----------
+    const generateTimeSlots = (): string[] => {
+        const slots: string[] = [];
+        const add = (h: number) => slots.push(`${String(h).padStart(2, "0")}:00`);
+        for (let h = 8; h <= 10; h++) add(h); // 08,09,10
+        for (let h = 13; h <= 16; h++) add(h); // 13,14,15,16
+        return slots;
+    };
+
+    const extractDateFromAppointment = (a: any): string | null => {
+        if (!a) return null;
+        if (a.appointment_time) {
+            try {
+                return new Date(a.appointment_time).toISOString().split("T")[0];
+            } catch {
+                return null;
+            }
+        }
+        if (a.appointmentDate) return a.appointmentDate;
+        return null;
+    };
+
+    const extractTimeFromAppointment = (a: any): string | null => {
+        if (!a) return null;
+        if (a.appointment_time) {
+            try {
+                const d = new Date(a.appointment_time);
+                return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+            } catch {
+                return null;
+            }
+        }
+        if (a.appointmentTime) return a.appointmentTime;
+        return null;
+    };
+
+    const computeBusySlots = (doctorId: string, date: string, branchId?: string) => {
+        if (!doctorId || !date) return [] as string[];
+        const allAppointments = JSON.parse(localStorage.getItem("petcare_appointments") || "[]");
+        const slots: string[] = [];
+        allAppointments.forEach((a: any) => {
+            const sameDoctor = (a.doctorId && a.doctorId === doctorId) || (a.veterinarianId && a.veterinarianId === doctorId);
+            const sameBranch = !branchId || a.branchId === branchId;
+            const aDate = extractDateFromAppointment(a);
+            if (sameDoctor && sameBranch && aDate === date) {
+                const t = extractTimeFromAppointment(a);
+                if (t) slots.push(t);
+            }
+        });
+        return Array.from(new Set(slots));
+    };
+
+    const isSlotBusy = (slot: string, busySlots: string[]) => busySlots.includes(slot);
+
+    // compute busy slots for each form when doctor/date/branch change
+    useEffect(() => {
+        const slots = computeBusySlots(examForm.doctorId, examForm.date, user.branchId);
+        setBusySlotsByForm((s) => ({ ...s, exam: slots }));
+        if (examForm.time && slots.includes(examForm.time)) {
+            setExamForm((f) => ({ ...f, time: "" }));
+        }
+    }, [examForm.doctorId, examForm.date, user.branchId]);
+
+    useEffect(() => {
+        const slots = computeBusySlots(singleDoseForm.doctorId, singleDoseForm.date, user.branchId);
+        setBusySlotsByForm((s) => ({ ...s, single: slots }));
+        if (singleDoseForm.time && slots.includes(singleDoseForm.time)) {
+            setSingleDoseForm((f) => ({ ...f, time: "" }));
+        }
+    }, [singleDoseForm.doctorId, singleDoseForm.date, user.branchId]);
+
+    useEffect(() => {
+        const slots = computeBusySlots(packageForm.doctorId, packageForm.date, user.branchId);
+        setBusySlotsByForm((s) => ({ ...s, package: slots }));
+        if (packageForm.time && slots.includes(packageForm.time)) {
+            setPackageForm((f) => ({ ...f, time: "" }));
+        }
+    }, [packageForm.doctorId, packageForm.date, user.branchId]);
 
     const loadData = () => {
         try {
@@ -72,13 +158,14 @@ export default function CustomerServiceBooking() {
 
             // Load veterinarians from customer's branch
             const allUsers = JSON.parse(localStorage.getItem("petcare_users") || "[]");
-            let branchVets = allUsers.filter(
-                (u: UserType) => u.role === "veterinarian" && u.branchId === user.branchId
-            );
+            const isDoctorRole = (u: any) =>
+                u.role === "veterinarian" || u.role === "Bác sĩ thú y" || u.employee_role === "Bác sĩ thú y";
+
+            let branchVets = allUsers.filter((u: UserType) => isDoctorRole(u) && u.branchId === user.branchId);
 
             // Fallback: if no vets in customer's branch or customer has no branch, show all vets
             if (branchVets.length === 0 || !user.branchId) {
-                branchVets = allUsers.filter((u: UserType) => u.role === "veterinarian");
+                branchVets = allUsers.filter((u: UserType) => isDoctorRole(u));
             }
 
             // Sort vets by specialization (specialist first, then general)
@@ -102,15 +189,22 @@ export default function CustomerServiceBooking() {
 
             // Load customer's appointments
             const allAppointments = JSON.parse(localStorage.getItem("petcare_appointments") || "[]");
-            const customerAppointments = allAppointments.filter(
-                (a: Appointment) => a.customerId === user.id
-            );
-            setAppointments(
-                customerAppointments.sort(
-                    (a: Appointment, b: Appointment) =>
-                        new Date(b.appointmentDate).getTime() - new Date(a.appointmentDate).getTime()
-                )
-            );
+            const customerAppointments = allAppointments.filter((a: Appointment) => a.customerId === user.id);
+            // Sort by appointment datetime (new format appointment_time preferred)
+            customerAppointments.sort((a: any, b: any) => {
+                const aTime = a.appointment_time
+                    ? new Date(a.appointment_time).getTime()
+                    : a.appointmentDate && a.appointmentTime
+                        ? new Date(`${a.appointmentDate}T${a.appointmentTime}:00`).getTime()
+                        : 0;
+                const bTime = b.appointment_time
+                    ? new Date(b.appointment_time).getTime()
+                    : b.appointmentDate && b.appointmentTime
+                        ? new Date(`${b.appointmentDate}T${b.appointmentTime}:00`).getTime()
+                        : 0;
+                return bTime - aTime;
+            });
+            setAppointments(customerAppointments);
         } catch (error) {
             console.error("Error loading data:", error);
         }
@@ -122,8 +216,7 @@ export default function CustomerServiceBooking() {
 
     const handleExamSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-
-        if (!examForm.petId || !examForm.veterinarianId || !examForm.date || !examForm.time) {
+        if (!examForm.petId || !examForm.doctorId || !examForm.date || !examForm.time) {
             toast({
                 title: "Missing Information",
                 description: "Please fill in all required fields.",
@@ -134,18 +227,21 @@ export default function CustomerServiceBooking() {
 
         try {
             const pet = pets.find((p) => p.id === examForm.petId);
-            const vet = vets.find((v) => v.id === examForm.veterinarianId);
+            const vet = vets.find((v) => String(v.id) === String(examForm.doctorId));
 
-            const newAppointment: Appointment = {
+            // combine date + selected time into ISO datetime for appointment_time
+            const local = new Date(`${examForm.date}T${examForm.time}:00`);
+            const appointment_time = local.toISOString();
+
+            const newAppointment: any = {
                 id: generateAppointmentId(),
                 petId: examForm.petId,
                 customerId: user.id,
                 branchId: user.branchId || "branch-1",
-                appointmentDate: examForm.date,
-                appointmentTime: examForm.time,
+                doctorId: examForm.doctorId,
                 serviceType: "medical-exam",
-                veterinarianId: examForm.veterinarianId,
-                reasonForVisit: "Medical Examination",
+                appointment_time,
+                reason: "Medical Examination",
                 status: "checked-in",
                 notes: examForm.notes,
                 createdAt: new Date().toISOString(),
@@ -161,13 +257,7 @@ export default function CustomerServiceBooking() {
             });
 
             // Reset form
-            setExamForm({
-                petId: "",
-                veterinarianId: "",
-                date: "",
-                time: "",
-                notes: "",
-            });
+            setExamForm({ petId: "", doctorId: "", date: "", time: "", notes: "" });
 
             loadData();
         } catch (error) {
@@ -182,11 +272,10 @@ export default function CustomerServiceBooking() {
 
     const handleSingleDoseSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-
         if (
             !singleDoseForm.petId ||
             !singleDoseForm.vaccineId ||
-            !singleDoseForm.veterinarianId ||
+            !singleDoseForm.doctorId ||
             !singleDoseForm.date ||
             !singleDoseForm.time
         ) {
@@ -201,18 +290,20 @@ export default function CustomerServiceBooking() {
         try {
             const pet = pets.find((p) => p.id === singleDoseForm.petId);
             const vaccine = vaccines.find((v) => v.id === singleDoseForm.vaccineId);
-            const vet = vets.find((v) => v.id === singleDoseForm.veterinarianId);
+            const vet = vets.find((v) => String(v.id) === String(singleDoseForm.doctorId));
 
-            const newAppointment: Appointment = {
+            const local = new Date(`${singleDoseForm.date}T${singleDoseForm.time}:00`);
+            const appointment_time = local.toISOString();
+
+            const newAppointment: any = {
                 id: generateAppointmentId(),
                 petId: singleDoseForm.petId,
                 customerId: user.id,
                 branchId: user.branchId || "branch-1",
-                appointmentDate: singleDoseForm.date,
-                appointmentTime: singleDoseForm.time,
+                doctorId: singleDoseForm.doctorId,
                 serviceType: "single-vaccine",
-                veterinarianId: singleDoseForm.veterinarianId,
-                reasonForVisit: `Single-Dose Injection: ${vaccine?.name}`,
+                appointment_time,
+                reason: `Single-Dose Injection: ${vaccine?.name}`,
                 status: "checked-in",
                 notes: singleDoseForm.notes,
                 createdAt: new Date().toISOString(),
@@ -228,14 +319,7 @@ export default function CustomerServiceBooking() {
             });
 
             // Reset form
-            setSingleDoseForm({
-                petId: "",
-                vaccineId: "",
-                veterinarianId: "",
-                date: "",
-                time: "",
-                notes: "",
-            });
+            setSingleDoseForm({ petId: "", vaccineId: "", doctorId: "", date: "", time: "", notes: "" });
 
             loadData();
         } catch (error) {
@@ -250,11 +334,10 @@ export default function CustomerServiceBooking() {
 
     const handlePackageSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-
         if (
             !packageForm.petId ||
             !packageForm.packageId ||
-            !packageForm.veterinarianId ||
+            !packageForm.doctorId ||
             !packageForm.date ||
             !packageForm.time
         ) {
@@ -269,18 +352,20 @@ export default function CustomerServiceBooking() {
         try {
             const pet = pets.find((p) => p.id === packageForm.petId);
             const pkg = packages.find((p) => p.id === packageForm.packageId);
-            const vet = vets.find((v) => v.id === packageForm.veterinarianId);
+            const vet = vets.find((v) => String(v.id) === String(packageForm.doctorId));
 
-            const newAppointment: Appointment = {
+            const local = new Date(`${packageForm.date}T${packageForm.time}:00`);
+            const appointment_time = local.toISOString();
+
+            const newAppointment: any = {
                 id: generateAppointmentId(),
                 petId: packageForm.petId,
                 customerId: user.id,
                 branchId: user.branchId || "branch-1",
-                appointmentDate: packageForm.date,
-                appointmentTime: packageForm.time,
+                doctorId: packageForm.doctorId,
                 serviceType: "vaccine-package",
-                veterinarianId: packageForm.veterinarianId,
-                reasonForVisit: `Package Injection: ${pkg?.name}`,
+                appointment_time,
+                reason: `Package Injection: ${pkg?.name}`,
                 status: "checked-in",
                 notes: packageForm.notes,
                 createdAt: new Date().toISOString(),
@@ -296,14 +381,7 @@ export default function CustomerServiceBooking() {
             });
 
             // Reset form
-            setPackageForm({
-                petId: "",
-                packageId: "",
-                veterinarianId: "",
-                date: "",
-                time: "",
-                notes: "",
-            });
+            setPackageForm({ petId: "", packageId: "", doctorId: "", date: "", time: "", notes: "" });
             setSelectedPackage(null);
             setShowPackageDetails(false);
 
@@ -357,6 +435,7 @@ export default function CustomerServiceBooking() {
     };
 
     const formatDate = (dateString: string) => {
+        if (!dateString) return "-";
         return new Date(dateString).toLocaleDateString("vi-VN", {
             year: "numeric",
             month: "short",
@@ -399,7 +478,7 @@ export default function CustomerServiceBooking() {
 
     const getVetName = (vetId?: string) => {
         if (!vetId) return "Not assigned";
-        const vet = vets.find((v) => v.id === vetId);
+        const vet = vets.find((v) => String(v.id) === String(vetId));
         return vet?.fullName || "Unknown";
     };
 
@@ -485,30 +564,27 @@ export default function CustomerServiceBooking() {
 
                                         <div>
                                             <Label htmlFor="exam-vet">
-                                                Veterinarian <span className="text-red-500">*</span>
+                                                Doctor <span className="text-red-500">*</span>
                                             </Label>
                                             <Select
-                                                value={examForm.veterinarianId}
-                                                onValueChange={(value) => setExamForm({ ...examForm, veterinarianId: value })}
+                                                value={examForm.doctorId}
+                                                onValueChange={(value) => setExamForm({ ...examForm, doctorId: value })}
                                             >
                                                 <SelectTrigger id="exam-vet">
-                                                    <SelectValue placeholder="Select veterinarian" />
+                                                    <SelectValue placeholder="Select doctor" />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     {vets.length === 0 ? (
                                                         <SelectItem value="none" disabled>
-                                                            No veterinarians available. Please contact support.
+                                                            No doctors available. Please contact support.
                                                         </SelectItem>
                                                     ) : (
                                                         vets.map((vet) => (
                                                             <SelectItem key={vet.id} value={vet.id}>
                                                                 <div className="flex flex-col">
-                                                                    <span className="font-medium">
-                                                                        {vet.fullName} - {vet.specialization || "General Veterinarian"}
-                                                                    </span>
+                                                                    <span className="font-medium">{vet.fullName}</span>
                                                                     <span className="text-xs text-muted-foreground">
-                                                                        {vet.phone && `Tel: ${vet.phone}`}
-                                                                        {vet.licenseNumber && ` | License: ${vet.licenseNumber}`}
+                                                                        {vet.specialization || "General Veterinarian"}
                                                                     </span>
                                                                 </div>
                                                             </SelectItem>
@@ -532,15 +608,33 @@ export default function CustomerServiceBooking() {
                                         </div>
 
                                         <div>
-                                            <Label htmlFor="exam-time">
-                                                Preferred Time <span className="text-red-500">*</span>
-                                            </Label>
-                                            <Input
-                                                id="exam-time"
-                                                type="time"
-                                                value={examForm.time}
-                                                onChange={(e) => setExamForm({ ...examForm, time: e.target.value })}
-                                            />
+                                            <Label>Preferred Time <span className="text-red-500">*</span></Label>
+                                            {!examForm.doctorId ? (
+                                                <p className="text-sm text-muted-foreground mt-2">Please select a doctor first</p>
+                                            ) : !examForm.date ? (
+                                                <p className="text-sm text-muted-foreground mt-2">Please select a date</p>
+                                            ) : (
+                                                <div className="mt-2 flex flex-wrap gap-2">
+                                                    {generateTimeSlots().map((slot) => {
+                                                        const busy = isSlotBusy(slot, busySlotsByForm.exam);
+                                                        const selected = examForm.time === slot;
+                                                        return (
+                                                            <button
+                                                                key={slot}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    if (busy) return;
+                                                                    setExamForm((f) => ({ ...f, time: slot }));
+                                                                }}
+                                                                disabled={busy}
+                                                                className={`px-3 py-1 rounded border ${selected ? "bg-blue-600 text-white" : "bg-white"} ${busy ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                                                            >
+                                                                {slot}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 
@@ -639,32 +733,27 @@ export default function CustomerServiceBooking() {
 
                                         <div>
                                             <Label htmlFor="single-vet">
-                                                Veterinarian <span className="text-red-500">*</span>
+                                                Doctor <span className="text-red-500">*</span>
                                             </Label>
                                             <Select
-                                                value={singleDoseForm.veterinarianId}
-                                                onValueChange={(value) =>
-                                                    setSingleDoseForm({ ...singleDoseForm, veterinarianId: value })
-                                                }
+                                                value={singleDoseForm.doctorId}
+                                                onValueChange={(value) => setSingleDoseForm({ ...singleDoseForm, doctorId: value })}
                                             >
                                                 <SelectTrigger id="single-vet">
-                                                    <SelectValue placeholder="Select veterinarian" />
+                                                    <SelectValue placeholder="Select doctor" />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     {vets.length === 0 ? (
                                                         <SelectItem value="none" disabled>
-                                                            No veterinarians available. Please contact support.
+                                                            No doctors available. Please contact support.
                                                         </SelectItem>
                                                     ) : (
                                                         vets.map((vet) => (
                                                             <SelectItem key={vet.id} value={vet.id}>
                                                                 <div className="flex flex-col">
-                                                                    <span className="font-medium">
-                                                                        {vet.fullName} - {vet.specialization || "General Veterinarian"}
-                                                                    </span>
+                                                                    <span className="font-medium">{vet.fullName}</span>
                                                                     <span className="text-xs text-muted-foreground">
-                                                                        {vet.phone && `Tel: ${vet.phone}`}
-                                                                        {vet.licenseNumber && ` | License: ${vet.licenseNumber}`}
+                                                                        {vet.specialization || "General Veterinarian"}
                                                                     </span>
                                                                 </div>
                                                             </SelectItem>
@@ -690,17 +779,33 @@ export default function CustomerServiceBooking() {
                                         </div>
 
                                         <div>
-                                            <Label htmlFor="single-time">
-                                                Preferred Time <span className="text-red-500">*</span>
-                                            </Label>
-                                            <Input
-                                                id="single-time"
-                                                type="time"
-                                                value={singleDoseForm.time}
-                                                onChange={(e) =>
-                                                    setSingleDoseForm({ ...singleDoseForm, time: e.target.value })
-                                                }
-                                            />
+                                            <Label>Preferred Time <span className="text-red-500">*</span></Label>
+                                            {!singleDoseForm.doctorId ? (
+                                                <p className="text-sm text-muted-foreground mt-2">Please select a doctor first</p>
+                                            ) : !singleDoseForm.date ? (
+                                                <p className="text-sm text-muted-foreground mt-2">Please select a date</p>
+                                            ) : (
+                                                <div className="mt-2 flex flex-wrap gap-2">
+                                                    {generateTimeSlots().map((slot) => {
+                                                        const busy = isSlotBusy(slot, busySlotsByForm.single);
+                                                        const selected = singleDoseForm.time === slot;
+                                                        return (
+                                                            <button
+                                                                key={slot}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    if (busy) return;
+                                                                    setSingleDoseForm((f) => ({ ...f, time: slot }));
+                                                                }}
+                                                                disabled={busy}
+                                                                className={`px-3 py-1 rounded border ${selected ? "bg-blue-600 text-white" : "bg-white"} ${busy ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                                                            >
+                                                                {slot}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 
@@ -799,32 +904,27 @@ export default function CustomerServiceBooking() {
 
                                         <div>
                                             <Label htmlFor="package-vet">
-                                                Veterinarian <span className="text-red-500">*</span>
+                                                Doctor <span className="text-red-500">*</span>
                                             </Label>
                                             <Select
-                                                value={packageForm.veterinarianId}
-                                                onValueChange={(value) =>
-                                                    setPackageForm({ ...packageForm, veterinarianId: value })
-                                                }
+                                                value={packageForm.doctorId}
+                                                onValueChange={(value) => setPackageForm({ ...packageForm, doctorId: value })}
                                             >
                                                 <SelectTrigger id="package-vet">
-                                                    <SelectValue placeholder="Select veterinarian" />
+                                                    <SelectValue placeholder="Select doctor" />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     {vets.length === 0 ? (
                                                         <SelectItem value="none" disabled>
-                                                            No veterinarians available. Please contact support.
+                                                            No doctors available. Please contact support.
                                                         </SelectItem>
                                                     ) : (
                                                         vets.map((vet) => (
                                                             <SelectItem key={vet.id} value={vet.id}>
                                                                 <div className="flex flex-col">
-                                                                    <span className="font-medium">
-                                                                        {vet.fullName} - {vet.specialization || "General Veterinarian"}
-                                                                    </span>
+                                                                    <span className="font-medium">{vet.fullName}</span>
                                                                     <span className="text-xs text-muted-foreground">
-                                                                        {vet.phone && `Tel: ${vet.phone}`}
-                                                                        {vet.licenseNumber && ` | License: ${vet.licenseNumber}`}
+                                                                        {vet.specialization || "General Veterinarian"}
                                                                     </span>
                                                                 </div>
                                                             </SelectItem>
@@ -850,17 +950,33 @@ export default function CustomerServiceBooking() {
                                         </div>
 
                                         <div>
-                                            <Label htmlFor="package-time">
-                                                Preferred Time <span className="text-red-500">*</span>
-                                            </Label>
-                                            <Input
-                                                id="package-time"
-                                                type="time"
-                                                value={packageForm.time}
-                                                onChange={(e) =>
-                                                    setPackageForm({ ...packageForm, time: e.target.value })
-                                                }
-                                            />
+                                            <Label>Preferred Time <span className="text-red-500">*</span></Label>
+                                            {!packageForm.doctorId ? (
+                                                <p className="text-sm text-muted-foreground mt-2">Please select a doctor first</p>
+                                            ) : !packageForm.date ? (
+                                                <p className="text-sm text-muted-foreground mt-2">Please select a date</p>
+                                            ) : (
+                                                <div className="mt-2 flex flex-wrap gap-2">
+                                                    {generateTimeSlots().map((slot) => {
+                                                        const busy = isSlotBusy(slot, busySlotsByForm.package);
+                                                        const selected = packageForm.time === slot;
+                                                        return (
+                                                            <button
+                                                                key={slot}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    if (busy) return;
+                                                                    setPackageForm((f) => ({ ...f, time: slot }));
+                                                                }}
+                                                                disabled={busy}
+                                                                className={`px-3 py-1 rounded border ${selected ? "bg-blue-600 text-white" : "bg-white"} ${busy ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                                                            >
+                                                                {slot}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 
@@ -999,13 +1115,13 @@ export default function CustomerServiceBooking() {
                                     <TableBody>
                                         {appointments.map((appointment) => (
                                             <TableRow key={appointment.id}>
-                                                <TableCell>{formatDate(appointment.appointmentDate)}</TableCell>
-                                                <TableCell>{appointment.appointmentTime}</TableCell>
+                                                <TableCell>{formatDate(extractDateFromAppointment(appointment) ?? appointment.appointmentDate)}</TableCell>
+                                                <TableCell>{extractTimeFromAppointment(appointment) ?? appointment.appointmentTime ?? "-"}</TableCell>
                                                 <TableCell className="font-medium">
                                                     {getServiceTypeDisplay(appointment.serviceType)}
                                                 </TableCell>
                                                 <TableCell>{getPetName(appointment.petId)}</TableCell>
-                                                <TableCell>{getVetName(appointment.veterinarianId)}</TableCell>
+                                                <TableCell>{getVetName((appointment as any).doctorId ?? (appointment as any).veterinarianId)}</TableCell>
                                                 <TableCell>{getStatusBadge(appointment.status)}</TableCell>
                                                 <TableCell className="text-right">
                                                     <div className="flex items-center justify-end gap-2">
