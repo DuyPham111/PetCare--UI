@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,8 +12,12 @@ interface Appointment {
   ownerName: string;
   ownerEmail: string;
   ownerPhone: string;
-  date: string;
-  time: string;
+  // legacy fields kept optional
+  date?: string;
+  time?: string;
+  // preferred: single ISO timestamp
+  appointment_time?: string;
+  doctorId?: string;
   reason: string;
   status: "pending" | "checked-in" | "completed";
 }
@@ -42,8 +46,93 @@ export default function Appointments() {
     ownerPhone: "",
     date: "",
     time: "",
+    doctorId: "",
     reason: "",
   });
+
+  const [vets, setVets] = useState<{ id: string; fullName: string }[]>([]);
+  const [busySlots, setBusySlots] = useState<string[]>([]);
+
+  // load vets from localStorage (supports both English and Vietnamese role labels)
+  useEffect(() => {
+    try {
+      const allUsers = JSON.parse(localStorage.getItem("petcare_users") || "[]");
+      const isDoctor = (u: any) => u.role === "veterinarian" || u.role === "Bác sĩ thú y" || u.employee_role === "Bác sĩ thú y";
+      const docs = allUsers.filter((u: any) => isDoctor(u)).map((u: any) => ({ id: String(u.id), fullName: u.fullName || u.name || u.full_name || "Unknown" }));
+      setVets(docs);
+    } catch {
+      setVets([]);
+    }
+  }, []);
+
+  const extractDateFromAppointment = (apt: Appointment) => {
+    if ((apt as any).appointment_time) {
+      try {
+        return new Date((apt as any).appointment_time).toLocaleDateString();
+      } catch {
+        /* noop */
+      }
+    }
+    if (apt.date) return new Date(apt.date).toLocaleDateString();
+    return "";
+  };
+
+  const extractTimeFromAppointment = (apt: Appointment) => {
+    if ((apt as any).appointment_time) {
+      try {
+        return new Date((apt as any).appointment_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      } catch {
+        /* noop */
+      }
+    }
+    return apt.time || "";
+  };
+
+  const generateTimeSlots = (): string[] => {
+    const slots: string[] = [];
+    const add = (h: number) => slots.push(`${String(h).padStart(2, "0")}:00`);
+    for (let h = 8; h <= 10; h++) add(h); // 08,09,10
+    for (let h = 13; h <= 16; h++) add(h); // 13,14,15,16
+    return slots;
+  };
+
+  const extractDateOnly = (isoOrDate?: string) => {
+    if (!isoOrDate) return null;
+    try {
+      return new Date(isoOrDate).toISOString().split("T")[0];
+    } catch {
+      return null;
+    }
+  };
+
+  const extractHHMM = (isoOrTime?: string) => {
+    if (!isoOrTime) return null;
+    // if ISO datetime
+    try {
+      const d = new Date(isoOrTime);
+      if (!isNaN(d.getTime())) return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    } catch {
+      // fallback
+    }
+    // if already HH:mm
+    if (/^\d{2}:\d{2}$/.test(isoOrTime)) return isoOrTime;
+    return null;
+  };
+
+  const computeBusySlots = (doctorId: string, date: string) => {
+    if (!doctorId || !date) return [] as string[];
+    const allAppointments = JSON.parse(localStorage.getItem("petcare_appointments") || "[]");
+    const slots: string[] = [];
+    allAppointments.forEach((a: any) => {
+      const sameDoctor = (a.doctorId && String(a.doctorId) === String(doctorId)) || (a.veterinarianId && String(a.veterinarianId) === String(doctorId));
+      const aDate = a.appointment_time ? extractDateOnly(a.appointment_time) : a.date || null;
+      if (sameDoctor && aDate === date) {
+        const t = a.appointment_time ? extractHHMM(a.appointment_time) : a.time;
+        if (t) slots.push(t);
+      }
+    });
+    return Array.from(new Set(slots));
+  };
 
   const [submitted, setSubmitted] = useState(false);
 
@@ -57,15 +146,25 @@ export default function Appointments() {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-
-    if (!formData.petName || !formData.ownerName || !formData.date || !formData.time) {
+    if (!formData.petName || !formData.ownerName || !formData.date || !formData.time || !formData.doctorId) {
       alert("Please fill in all required fields");
       return;
     }
 
+    // combine date + time into single ISO timestamp (appointment_time)
+    const local = new Date(`${formData.date}T${formData.time}:00`);
+    const appointment_time = local.toISOString();
+
     const newAppointment: Appointment = {
       id: Date.now().toString(),
-      ...formData,
+      petName: formData.petName,
+      petType: formData.petType,
+      ownerName: formData.ownerName,
+      ownerEmail: formData.ownerEmail,
+      ownerPhone: formData.ownerPhone,
+      appointment_time,
+      doctorId: formData.doctorId,
+      reason: formData.reason,
       status: "pending",
     };
 
@@ -78,11 +177,26 @@ export default function Appointments() {
       ownerPhone: "",
       date: "",
       time: "",
+      doctorId: "",
       reason: "",
     });
     setSubmitted(true);
     setTimeout(() => setSubmitted(false), 4000);
   };
+
+  // recompute busy slots when doctor or date selection changes
+  useEffect(() => {
+    const d = (formData as any).doctorId;
+    const date = formData.date;
+    if (!d || !date) {
+      setBusySlots([]);
+      return;
+    }
+    const slots = computeBusySlots(d, date);
+    setBusySlots(slots);
+    // reset selected time if it becomes busy
+    if (formData.time && slots.includes(formData.time)) setFormData((f) => ({ ...f, time: "" }));
+  }, [(formData as any).doctorId, formData.date]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -246,7 +360,7 @@ export default function Appointments() {
                   <div>
                     <h3 className="text-lg font-semibold text-foreground mb-4">Appointment Details</h3>
                     <div className="space-y-4">
-                      <div className="grid sm:grid-cols-2 gap-4">
+                      <div className="grid sm:grid-cols-3 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-foreground mb-2">
                             Preferred Date *
@@ -262,16 +376,60 @@ export default function Appointments() {
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-foreground mb-2">
-                            Preferred Time *
+                            Doctor *
                           </label>
-                          <input
-                            type="time"
-                            name="time"
-                            value={formData.time}
-                            onChange={handleInputChange}
+                          <select
+                            name="doctorId"
+                            value={(formData as any).doctorId}
+                            onChange={(e) => {
+                              // reset time when doctor changes
+                              handleInputChange(e);
+                              setFormData((f) => ({ ...f, time: "" }));
+                            }}
                             className="w-full px-4 py-2 border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                             required
-                          />
+                          >
+                            <option value="">-- Select doctor --</option>
+                            {vets.length === 0 ? (
+                              <option value="" disabled>No doctors available</option>
+                            ) : (
+                              vets.map((v) => (
+                                <option key={v.id} value={v.id}>{v.fullName}</option>
+                              ))
+                            )}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-foreground mb-2">
+                            Preferred Time *
+                          </label>
+                          {/* show time slots only when doctor and date are selected */}
+                          {!((formData as any).doctorId) ? (
+                            <p className="text-sm text-muted-foreground mt-2">Please select a doctor first</p>
+                          ) : !formData.date ? (
+                            <p className="text-sm text-muted-foreground mt-2">Please select a date</p>
+                          ) : (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {generateTimeSlots().map((slot) => {
+                                const busy = busySlots.includes(slot);
+                                const selected = formData.time === slot;
+                                return (
+                                  <button
+                                    key={slot}
+                                    type="button"
+                                    onClick={() => {
+                                      if (busy) return;
+                                      setFormData((f) => ({ ...f, time: slot }));
+                                    }}
+                                    disabled={busy}
+                                    className={`px-3 py-1 rounded border ${selected ? "bg-blue-600 text-white" : "bg-white"} ${busy ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                                  >
+                                    {slot}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -356,11 +514,11 @@ export default function Appointments() {
                     <div className="grid sm:grid-cols-2 gap-4 text-sm">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4 opacity-60" />
-                        <span>{new Date(apt.date).toLocaleDateString()}</span>
+                        <span>{extractDateFromAppointment(apt)}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Clock className="w-4 h-4 opacity-60" />
-                        <span>{apt.time}</span>
+                        <span>{extractTimeFromAppointment(apt)}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <User className="w-4 h-4 opacity-60" />
