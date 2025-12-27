@@ -1,13 +1,14 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { User, UserRole } from "@shared/types";
 import { DEFAULT_MEMBERSHIP_LEVEL } from "@/lib/membershipUtils";
+import { apiPost, apiGet } from "@/api/api";
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   signup: (email: string, password: string, fullName: string, role: UserRole) => Promise<void>;
 }
 
@@ -17,35 +18,67 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load user from localStorage on mount
+  // Load user from backend on mount if cookies exist, otherwise check localStorage
   useEffect(() => {
-    const storedUser = localStorage.getItem("petcare_user");
-    if (storedUser) {
+    const loadUser = async () => {
       try {
-        setUser(JSON.parse(storedUser));
+        // First check if we have cookies (try to fetch from backend)
+        try {
+          const response = await apiGet("/auth/me");
+          if (response?.data) {
+            const backendUser = mapBackendUserToFrontend(response.data);
+            setUser(backendUser);
+            localStorage.setItem("petcare_user", JSON.stringify(backendUser));
+            setIsLoading(false);
+            return;
+          }
+        } catch (error) {
+          // No valid session, try localStorage as fallback
+          console.log("No valid session, checking localStorage");
+        }
+
+        // Fallback to localStorage if backend session doesn't exist
+        const storedUser = localStorage.getItem("petcare_user");
+        if (storedUser) {
+          try {
+            setUser(JSON.parse(storedUser));
+          } catch (error) {
+            console.error("Failed to parse stored user:", error);
+          }
+        }
       } catch (error) {
-        console.error("Failed to parse stored user:", error);
+        console.error("Failed to load user:", error);
+      } finally {
+        setIsLoading(false);
       }
-    }
-    setIsLoading(false);
+    };
+
+    loadUser();
   }, []);
 
   const login = async (email: string, password: string) => {
-    // Mock login - in real app, this would call an API
-    const allUsers = JSON.parse(localStorage.getItem("petcare_users") || "[]");
-    const foundUser = allUsers.find(
-      (u: User) => u.email === email && u.password === password
-    );
+    // Call backend login API - cookies will be set automatically
+    await apiPost("/auth/login", { email, password });
 
-    if (!foundUser) {
-      throw new Error("Invalid email or password");
+    // After login, fetch user data from /auth/me
+    const response = await apiGet("/auth/me");
+    if (!response?.data) {
+      throw new Error("Failed to fetch user data after login");
     }
 
-    setUser(foundUser);
-    localStorage.setItem("petcare_user", JSON.stringify(foundUser));
+    const backendUser = mapBackendUserToFrontend(response.data);
+    setUser(backendUser);
+    localStorage.setItem("petcare_user", JSON.stringify(backendUser));
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      // Call backend logout API to clear cookies
+      await apiPost("/auth/logout", {});
+    } catch (error) {
+      console.error("Logout API error (continuing anyway):", error);
+    }
+
     setUser(null);
     localStorage.removeItem("petcare_user");
     // Always redirect to shared login route on logout
@@ -95,6 +128,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     </AuthContext.Provider>
   );
 };
+
+// Helper function to map backend user data to frontend User type
+function mapBackendUserToFrontend(backendUser: any): User {
+  // Map backend account_type/role to frontend UserRole
+  const roleMap: Record<string, UserRole> = {
+    "Khách hàng": "customer",
+    "Nhân viên tiếp tân": "receptionist",
+    "Bác sĩ thú y": "veterinarian",
+    "Nhân viên bán hàng": "sales",
+    "Quản lý chi nhánh": "admin",
+  };
+
+  // Map backend membership_level to frontend format
+  const membershipMap: Record<string, string> = {
+    "Cơ bản": "Cơ bản",
+    "Thân thiết": "Thân thiết",
+    "VIP": "VIP",
+  };
+
+  return {
+    id: String(backendUser.id),
+    email: backendUser.email,
+    fullName: backendUser.full_name || "",
+    role: roleMap[backendUser.role] || "customer",
+    membershipLevel: backendUser.membership_level
+      ? (membershipMap[backendUser.membership_level] as any)
+      : undefined,
+    phone: backendUser.phone_number,
+    createdAt: new Date().toISOString(), // Backend doesn't return this, use current time
+  };
+}
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
